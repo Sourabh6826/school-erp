@@ -1,10 +1,22 @@
 from rest_framework import serializers
-from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction
+from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction, FeeAmount
+
+class FeeAmountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FeeAmount
+        fields = ['id', 'class_name', 'amount']
+
 
 class FeeHeadSerializer(serializers.ModelSerializer):
+    amounts = FeeAmountSerializer(many=True, read_only=True)
+
     class Meta:
         model = FeeHead
-        fields = '__all__'
+        fields = [
+            'id', 'name', 'description', 'session', 'amounts',
+            'frequency', 'due_day', 'due_months', 
+            'late_fee_amount', 'grace_period_days'
+        ]
 
 class FeeStructureSerializer(serializers.ModelSerializer):
     fee_head_name = serializers.ReadOnlyField(source='fee_head.name')

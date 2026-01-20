@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Fees from './pages/Fees';
-import Inventory from './pages/Inventory';
+
 
 function App() {
   return (
@@ -17,7 +17,7 @@ function App() {
             <Link to="/" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Dashboard</Link>
             <Link to="/students" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Students</Link>
             <Link to="/fees" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Fees</Link>
-            <Link to="/inventory" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Inventory</Link>
+
           </nav>
         </aside>
 
@@ -27,7 +27,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/students" element={<Students />} />
             <Route path="/fees" element={<Fees />} />
-            <Route path="/inventory" element={<Inventory />} />
+
           </Routes>
         </main>
       </div>
