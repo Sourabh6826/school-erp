@@ -15,7 +15,7 @@ class FeeHeadSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'session', 'amounts',
             'frequency', 'due_day', 'due_months', 
-            'late_fee_amount', 'grace_period_days'
+            'late_fee_amount', 'grace_period_days', 'is_transport_fee'
         ]
 
 class FeeStructureSerializer(serializers.ModelSerializer):

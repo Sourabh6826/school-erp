@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, filters
 from rest_framework.response import Response
 from rest_framework import status
 from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction, FeeAmount
@@ -69,6 +69,8 @@ class StudentFeeViewSet(viewsets.ModelViewSet):
     filterset_fields = ['student', 'is_paid']
 
 class FeeTransactionViewSet(viewsets.ModelViewSet):
-    queryset = FeeTransaction.objects.all()
+    queryset = FeeTransaction.objects.all().order_by('-payment_date', '-id')
     serializer_class = FeeTransactionSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['student__name', 'student__student_id']
     filterset_fields = ['student']

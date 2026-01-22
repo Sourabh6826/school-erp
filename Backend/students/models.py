@@ -21,6 +21,10 @@ class Student(models.Model):
         ('Class 12', 'Class 12'),
     ])
     has_transport = models.BooleanField(default=False)
+    is_new_admission = models.BooleanField(default=False)
+    contact_number = models.CharField(max_length=15, null=True, blank=True)
+    status = models.CharField(max_length=10, choices=[('Active', 'Active'), ('TC', 'TC')], default='Active')
+    transport_fee_head = models.ForeignKey('fees.FeeHead', on_delete=models.SET_NULL, null=True, blank=True, related_name='transport_students')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
