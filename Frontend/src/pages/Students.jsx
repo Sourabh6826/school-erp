@@ -157,9 +157,9 @@ function Students() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-100">
                     <thead className="bg-gray-50 bg-opacity-50">
-                        <tr className="text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                        <tr className="text-left text-[12px] font-black text-gray-600 uppercase tracking-widest">
                             <th className="px-6 py-5">S.No.</th>
-                            <th className="px-6 py-5">ID</th>
+                            <th className="px-6 py-5">UID</th>
                             <th className="px-6 py-5">Student Name</th>
                             <th className="px-6 py-5">Class</th>
                             <th className="px-6 py-5">Contact</th>
@@ -179,8 +179,8 @@ function Students() {
                                 .filter(s => !showOnlyActive || s.status === 'Active')
                                 .map((student, index) => (
                                     <tr key={student.id} className="hover:bg-gray-50 transition group">
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-gray-400">{(index + 1).toString().padStart(2, '0')}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-400 uppercase tracking-tighter">#{student.student_id}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-gray-600">{(index + 1).toString().padStart(2, '0')}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-600 uppercase tracking-tighter">#{student.student_id}</td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <p className="text-sm font-bold text-gray-800">{student.name}</p>
                                         </td>

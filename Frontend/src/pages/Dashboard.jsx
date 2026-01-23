@@ -13,16 +13,33 @@ function Dashboard() {
     const [filters, setFilters] = useState({
         session: '2026-27',
         student_class: '',
+        installment: '1',
         date: new Date().toISOString().split('T')[0],
         show_all: false
     });
+    const [globalSettings, setGlobalSettings] = useState({ installment_count: 1 });
 
     const classOptions = ['Nursery', 'KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
 
     useEffect(() => {
+        fetchGlobalSettings();
         fetchStats();
         fetchPendingFees();
     }, [filters]);
+
+    const fetchGlobalSettings = async () => {
+        try {
+            const response = await api.get(`fees/settings/${filters.session}/`);
+            setGlobalSettings(response.data);
+            // If current installment filter is higher than new count, reset it
+            if (parseInt(filters.installment) > response.data.installment_count) {
+                setFilters(prev => ({ ...prev, installment: '1' }));
+            }
+        } catch (error) {
+            console.log("No settings found for session, using defaults");
+            setGlobalSettings({ installment_count: 4 });
+        }
+    };
 
     const fetchStats = async () => {
         try {
@@ -95,6 +112,19 @@ function Dashboard() {
                         </select>
                     </div>
                     <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">Installment</label>
+                        <select
+                            className="bg-transparent border-none focus:ring-0 text-sm font-semibold"
+                            value={filters.installment}
+                            onChange={(e) => setFilters({ ...filters, installment: e.target.value })}
+                        >
+                            <option value="">All</option>
+                            {Array.from({ length: globalSettings.installment_count }, (_, i) => i + 1).map(num => (
+                                <option key={num} value={num}>Inst. {num}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">As of Date</label>
                         <input
                             type="date"
@@ -120,11 +150,11 @@ function Dashboard() {
                     <p className="text-2xl mt-2 text-orange-600 font-bold">{stats.tc_students}</p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
-                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Collected</h3>
+                    <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">Collected</h3>
                     <p className="text-2xl mt-2 text-green-600 font-bold font-mono">₹{stats.total_collected.toLocaleString()}</p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-red-500">
-                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pending</h3>
+                    <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">Pending</h3>
                     <p className="text-2xl mt-2 text-red-600 font-bold font-mono">₹{stats.total_pending.toLocaleString()}</p>
                 </div>
             </div>
@@ -133,7 +163,7 @@ function Dashboard() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                     <div>
                         <h3 className="text-2xl font-bold text-gray-800">Student Fees Detail</h3>
-                        <p className="text-gray-400 text-xs mt-1 font-medium">Session-wise fee breakdown and collection status</p>
+                        <p className="text-gray-500 text-sm mt-1 font-medium">Session-wise fee breakdown and collection status</p>
                     </div>
                     <div className="flex items-center gap-4 w-full md:w-auto">
                         <label className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-100 transition">
@@ -157,12 +187,22 @@ function Dashboard() {
                     <table className="min-w-full divide-y divide-gray-100">
                         <thead>
                             <tr className="bg-gray-50 bg-opacity-50">
-                                <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Student</th>
-                                <th className="px-6 py-5 text-left text-xs font-black text-gray-400 uppercase tracking-widest">Class</th>
-                                <th className="px-6 py-5 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Total Due</th>
-                                <th className="px-6 py-5 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Paid</th>
-                                <th className="px-6 py-5 text-right text-xs font-black text-gray-400 uppercase tracking-widest">Pending</th>
-                                <th className="px-6 py-5 text-center text-xs font-black text-gray-400 uppercase tracking-widest">Heads Breakdown</th>
+                                <th className="px-6 py-5 text-left text-xs font-black text-gray-600 uppercase tracking-widest">Student</th>
+                                <th className="px-6 py-5 text-left text-xs font-black text-gray-600 uppercase tracking-widest">Class</th>
+                                {filters.installment ? (
+                                    <>
+                                        {/* Dynamic headers for fee heads if installment selected */}
+                                        {pendingFees.length > 0 && Object.keys(pendingFees[0].installment_data[filters.installment]?.heads || {}).map(head => (
+                                            <th key={head} className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest">{head}</th>
+                                        ))}
+                                    </>
+                                ) : (
+                                    <>
+                                        <th className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest">Total Due</th>
+                                        <th className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest">Total Paid</th>
+                                        <th className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest">Pending</th>
+                                    </>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-50">
@@ -175,23 +215,33 @@ function Dashboard() {
                                     <tr key={s.id} className="hover:bg-gray-50 transition group">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <p className="text-sm font-bold text-gray-800">{s.name}</p>
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">#{s.student_id}</p>
+                                            <p className="text-xs font-bold text-gray-500 uppercase tracking-tighter">#{s.student_id}</p>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-xs font-black bg-gray-100 text-gray-600 px-2 py-1 rounded-lg uppercase">{s.student_class}</span>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-right font-medium">₹{s.total_due.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 text-right font-medium">₹{s.total_paid.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 text-right font-bold">₹{s.pending_amount.toLocaleString()}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-[10px]">
-                                            <div className="flex flex-wrap gap-1 justify-center">
-                                                {Object.entries(s.head_breakdown).map(([head, details]) => (
-                                                    <span key={head} title={`${head}: Due ₹${details.due}, Paid ₹${details.paid}`} className={`px-2 py-1 rounded-md font-black uppercase tracking-tighter ${details.pending > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                                                        {head.split(' ').map(w => w[0]).join('')}: {details.pending > 0 ? 'Due' : 'Paid'}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </td>
+                                        {filters.installment ? (
+                                            <>
+                                                {Object.keys(pendingFees[0].installment_data[filters.installment]?.heads || {}).map(head => {
+                                                    const details = s.installment_data[filters.installment]?.heads[head] || { due: 0, paid: 0, pending: 0 };
+                                                    return (
+                                                        <td key={head} className="px-6 py-4 whitespace-nowrap text-right">
+                                                            <div className="text-xs font-bold">
+                                                                <span className="text-gray-500">D: ₹{details.due.toFixed(0)}</span>
+                                                                <span className="text-green-700 ml-2">P: ₹{details.paid.toFixed(0)}</span>
+                                                            </div>
+                                                            {details.pending > 0 && <p className="text-xs font-black text-red-600 mt-1">Pending: ₹{details.pending.toFixed(0)}</p>}
+                                                        </td>
+                                                    )
+                                                })}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-right font-medium">₹{s.total_due.toLocaleString()}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 text-right font-medium">₹{s.total_paid.toLocaleString()}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 text-right font-bold">₹{s.pending_amount.toLocaleString()}</td>
+                                            </>
+                                        )}
                                     </tr>
                                 ))
                             )}

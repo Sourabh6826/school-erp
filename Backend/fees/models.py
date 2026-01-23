@@ -15,9 +15,11 @@ class FeeHead(models.Model):
     frequency = models.CharField(
         max_length=20, 
         choices=FREQUENCY_CHOICES, 
-        default='MONTHLY',
+        default='INSTALLMENTS',
         help_text="How often this fee is collected"
     )
+    
+    installment_count = models.IntegerField(default=1, help_text="Number of installments")
     
     # Due date settings
     due_day = models.IntegerField(
@@ -73,16 +75,37 @@ class StudentFee(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     fee_head = models.ForeignKey(FeeHead, on_delete=models.CASCADE)
     amount_due = models.DecimalField(max_digits=10, decimal_places=2)
-    month = models.IntegerField(default=1, help_text="Month number (1-12)")
+    installment_number = models.IntegerField(default=1, help_text="Installment number (1, 2, 3...)")
     is_paid = models.BooleanField(default=False)
     
     class Meta:
-        unique_together = ['student', 'fee_head', 'month']
+        unique_together = ['student', 'fee_head', 'installment_number']
+
+class GlobalFeeSetting(models.Model):
+    session = models.CharField(max_length=10, unique=True)
+    installment_count = models.IntegerField(default=1)
+    due_months = models.CharField(max_length=100, help_text="Comma-separated months (1-12)")
+    due_day = models.IntegerField(default=10)
+
+    def __str__(self):
+        return f"Settings for {self.session}"
+
+class Receipt(models.Model):
+    receipt_no = models.PositiveIntegerField(unique=True)
+    payment_date = models.DateField(auto_now_add=True)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    remarks = models.TextField(blank=True)
+    
+    def __str__(self):
+        return f"Receipt #{self.receipt_no} - {self.student.name}"
 
 class FeeTransaction(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     fee_head = models.ForeignKey(FeeHead, on_delete=models.SET_NULL, null=True)
+    receipt = models.ForeignKey(Receipt, on_delete=models.CASCADE, related_name='transactions', null=True, blank=True)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    installment_number = models.IntegerField(default=1)
     payment_date = models.DateField(auto_now_add=True)
     remarks = models.TextField(blank=True)
     

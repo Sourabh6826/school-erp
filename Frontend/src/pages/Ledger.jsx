@@ -128,6 +128,7 @@ function Ledger() {
                                     <tr className="bg-gray-50">
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Inst.</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Debit (Fee)</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Credit (Paid)</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Balance</th>
@@ -143,6 +144,7 @@ function Ledger() {
                                             <tr key={index} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">{e.date}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{e.description}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">{e.installment || '-'}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700 font-semibold">{e.debit > 0 ? `₹${e.debit.toLocaleString()}` : '-'}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-bold">{e.credit > 0 ? `₹${e.credit.toLocaleString()}` : '-'}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-gray-800">₹{e.balance.toLocaleString()}</td>
