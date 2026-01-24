@@ -195,6 +195,9 @@ function Dashboard() {
                                         {pendingFees.length > 0 && Object.keys(pendingFees[0].installment_data[filters.installment]?.heads || {}).map(head => (
                                             <th key={head} className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest">{head}</th>
                                         ))}
+                                        {/* Added Totals for Installment */}
+                                        <th className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest bg-gray-100">Total Due</th>
+                                        <th className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest bg-gray-100">Total Paid</th>
                                     </>
                                 ) : (
                                     <>
@@ -234,6 +237,22 @@ function Dashboard() {
                                                         </td>
                                                     )
                                                 })}
+                                                {/* Calculate and Show Totals */}
+                                                {(() => {
+                                                    const instData = s.installment_data[filters.installment];
+                                                    const totalInstDue = instData ? Object.values(instData.heads).reduce((acc, h) => acc + h.due, 0) : 0;
+                                                    const totalInstPaid = instData ? Object.values(instData.heads).reduce((acc, h) => acc + h.paid, 0) : 0;
+                                                    return (
+                                                        <>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right bg-gray-50">
+                                                                <span className="text-sm font-bold text-gray-800">₹{totalInstDue.toFixed(0)}</span>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right bg-gray-50">
+                                                                <span className="text-sm font-bold text-green-600">₹{totalInstPaid.toFixed(0)}</span>
+                                                            </td>
+                                                        </>
+                                                    );
+                                                })()}
                                             </>
                                         ) : (
                                             <>
