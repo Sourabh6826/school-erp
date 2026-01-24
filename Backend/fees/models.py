@@ -86,6 +86,16 @@ class GlobalFeeSetting(models.Model):
     installment_count = models.IntegerField(default=1)
     due_months = models.CharField(max_length=100, help_text="Comma-separated months (1-12)")
     due_day = models.IntegerField(default=10)
+    
+    # Late Fee Settings
+    late_fee_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    late_fee_start_day = models.IntegerField(default=15, help_text="Day of month after which late fee is applied")
+    late_fee_frequency = models.CharField(
+        max_length=20, 
+        default='ONCE', 
+        choices=[('ONCE', 'Once'), ('PER_DAY', 'Per Day')],
+        help_text="Apply once or daily after due date"
+    )
 
     def __str__(self):
         return f"Settings for {self.session}"

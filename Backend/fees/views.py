@@ -122,7 +122,54 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             
         return Response(ReceiptSerializer(receipt).data, status=status.HTTP_201_CREATED)
 
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        payment_items = request.data.get('items', [])
+        remarks = request.data.get('remarks', instance.remarks)
+        
+        instance.remarks = remarks
+        
+        # Update specific transactions
+        for item in payment_items:
+            try:
+                # We expect item to have an id if it's an existing transaction
+                # OR we might be identifying by fee_head and installment if simplified
+                # Ideally, the frontend sends the transaction ID.
+                # Let's assume the frontend sends the relevant fee_transaction id in the item data
+                trans_id = item.get('transaction_id')
+                if trans_id:
+                     trans = FeeTransaction.objects.get(id=trans_id, receipt=instance)
+                     trans.amount_paid = float(item['amount_paid'])
+                     trans.remarks = remarks
+                     trans.save()
+            except FeeTransaction.DoesNotExist:
+                continue
+                
+        # Recalculate total for receipt
+        total = instance.transactions.aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0
+        instance.total_amount = total
+        instance.save()
+        
+        return Response(ReceiptSerializer(instance).data)
+
 class GlobalFeeSettingViewSet(viewsets.ModelViewSet):
     queryset = GlobalFeeSetting.objects.all()
     serializer_class = GlobalFeeSettingSerializer
     lookup_field = 'session'
+
+    def create(self, request, *args, **kwargs):
+        session = request.data.get('session')
+        instance = GlobalFeeSetting.objects.filter(session=session).first()
+        
+        if instance:
+            # Switch to update mode for existing session
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+        else:
+            # Standard create mode
+            serializer = self.get_serializer(data=request.data)
+            
+        serializer.is_valid(raise_exception=True)
+        serializer.save() # Use .save() instead of perform_create for updates
+        
+        return Response(serializer.data, status=status.HTTP_200_OK if instance else status.HTTP_201_CREATED)
