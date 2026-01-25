@@ -6,3 +6,4 @@ python-dotenv
 dj-database-url
 whitenoise
 gunicorn
+openpyxl
