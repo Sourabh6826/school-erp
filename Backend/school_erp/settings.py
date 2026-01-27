@@ -168,6 +168,12 @@ SESSION_COOKIE_SECURE = True  # Required for HTTPS in production
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
 SESSION_COOKIE_AGE = 86400  # 24 hours
 
+# ADD THESE for the CSRF cookie:
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = False  # Set to False so Axios/Frontend can read it if needed
+CSRF_USE_SESSIONS = False      # Usually better to keep this False for standard CSRF handling
+
 # CSRF Configuration - Use production URLs from .env
 # Django 4.0+ requires scheme (https://) in CSRF_TRUSTED_ORIGINS
 backend_url = os.getenv('RENDER_EXTERNAL_HOSTNAME', 'https://school-fees-erp.onrender.com')
