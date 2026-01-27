@@ -169,10 +169,17 @@ SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
 SESSION_COOKIE_AGE = 86400  # 24 hours
 
 # CSRF Configuration - Use production URLs from .env
-CSRF_TRUSTED_ORIGINS = [
-    os.getenv('RENDER_EXTERNAL_HOSTNAME', 'https://school-fees-erp.onrender.com'),
-    os.getenv('CORS_ALLOWED_ORIGINS', 'https://school-erp-frontend-etrn.onrender.com'),
-]
+# Django 4.0+ requires scheme (https://) in CSRF_TRUSTED_ORIGINS
+backend_url = os.getenv('RENDER_EXTERNAL_HOSTNAME', 'https://school-fees-erp.onrender.com')
+frontend_url = os.getenv('CORS_ALLOWED_ORIGINS', 'https://school-erp-frontend-etrn.onrender.com')
+
+# Ensure URLs have https:// scheme
+if not backend_url.startswith('http'):
+    backend_url = f'https://{backend_url}'
+if not frontend_url.startswith('http'):
+    frontend_url = f'https://{frontend_url}'
+
+CSRF_TRUSTED_ORIGINS = [backend_url, frontend_url]
 
 # Add localhost for local development
 if DEBUG:
