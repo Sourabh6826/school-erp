@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
+import EnrollmentModal from '../components/EnrollmentModal';
 
 function Students() {
     const [students, setStudents] = useState([]);
     const [feeHeads, setFeeHeads] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editingStudent, setEditingStudent] = useState(null);
+    const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
+    const [selectedStudent, setSelectedStudent] = useState(null);
+    const [currentSession, setCurrentSession] = useState('2026-27');
     const [newStudent, setNewStudent] = useState({
         name: '',
         student_id: '',
@@ -209,7 +213,16 @@ function Students() {
                                                 <span className="px-2 py-1 text-[9px] uppercase font-black tracking-tighter bg-green-100 text-green-700 rounded-lg">Active</span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm flex gap-2 justify-end">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedStudent(student);
+                                                    setShowEnrollmentModal(true);
+                                                }}
+                                                className="text-purple-600 hover:text-purple-900 font-black uppercase text-[10px] tracking-widest bg-purple-50 px-3 py-1 rounded-xl opacity-0 group-hover:opacity-100 transition"
+                                            >
+                                                Manage Fees
+                                            </button>
                                             <button
                                                 onClick={() => handleEdit(student)}
                                                 className="text-blue-600 hover:text-blue-900 font-black uppercase text-[10px] tracking-widest bg-blue-50 px-3 py-1 rounded-xl opacity-0 group-hover:opacity-100 transition"
@@ -353,6 +366,21 @@ function Students() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Enrollment Management Modal */}
+            {showEnrollmentModal && selectedStudent && (
+                <EnrollmentModal
+                    student={selectedStudent}
+                    session={currentSession}
+                    onClose={() => {
+                        setShowEnrollmentModal(false);
+                        setSelectedStudent(null);
+                    }}
+                    onSave={() => {
+                        fetchStudents(); // Refresh student list
+                    }}
+                />
             )}
         </div>
     );

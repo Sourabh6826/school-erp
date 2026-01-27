@@ -121,3 +121,31 @@ class FeeTransaction(models.Model):
     
     def __str__(self):
         return f"{self.student.name} - {self.fee_head.name if self.fee_head else 'General'} - {self.amount_paid}"
+
+class StudentFeeEnrollment(models.Model):
+    """
+    Tracks per-installment enrollment for any fee head.
+    Uses OPT-OUT approach: If no record exists, student IS enrolled (default).
+    Only create records when student opts OUT of a fee for specific installment.
+    """
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_enrollments')
+    fee_head = models.ForeignKey(FeeHead, on_delete=models.CASCADE, related_name='enrollments')
+    session = models.CharField(max_length=10, help_text="Academic session (e.g., 2026-27)")
+    installment_number = models.IntegerField(help_text="Installment number (1, 2, 3, ...)")
+    is_enrolled = models.BooleanField(
+        default=True,
+        help_text="True = enrolled, False = opted out"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['student', 'fee_head', 'session', 'installment_number']
+        indexes = [
+            models.Index(fields=['student', 'session']),
+            models.Index(fields=['fee_head', 'session']),
+        ]
+    
+    def __str__(self):
+        status = "Enrolled" if self.is_enrolled else "Opted Out"
+        return f"{self.student.name} - {self.fee_head.name} - Inst {self.installment_number} - {status}"

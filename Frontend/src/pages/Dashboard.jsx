@@ -10,13 +10,22 @@ function Dashboard() {
         total_pending: 0
     });
     const [pendingFees, setPendingFees] = useState([]);
+
+    // Get first day of current month
+    const getFirstDayOfMonth = () => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    };
+
     const [filters, setFilters] = useState({
         session: '2026-27',
         student_class: '',
-        installment: '1',
-        date: new Date().toISOString().split('T')[0],
+        installment: '',
+        date_from: getFirstDayOfMonth(),
+        date_to: new Date().toISOString().split('T')[0],
         show_all: false
     });
+    const [sortBy, setSortBy] = useState('pending_desc');
     const [globalSettings, setGlobalSettings] = useState({ installment_count: 1 });
 
     const classOptions = ['Nursery', 'KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
@@ -33,7 +42,7 @@ function Dashboard() {
             setGlobalSettings(response.data);
             // If current installment filter is higher than new count, reset it
             if (parseInt(filters.installment) > response.data.installment_count) {
-                setFilters(prev => ({ ...prev, installment: '1' }));
+                setFilters(prev => ({ ...prev, installment: '' }));
             }
         } catch (error) {
             console.log("No settings found for session, using defaults");
@@ -43,7 +52,13 @@ function Dashboard() {
 
     const fetchStats = async () => {
         try {
-            const queryParams = new URLSearchParams(filters).toString();
+            const queryParams = new URLSearchParams({
+                session: filters.session,
+                student_class: filters.student_class,
+                installment: filters.installment,
+                date_from: filters.date_from,
+                date_to: filters.date_to
+            }).toString();
             const response = await api.get(`students/stats/?${queryParams}`);
             setStats(response.data);
         } catch (error) {
@@ -65,10 +80,32 @@ function Dashboard() {
         }
     };
 
+    // Sorting function
+    const getSortedFees = () => {
+        const sorted = [...pendingFees];
+        switch (sortBy) {
+            case 'pending_desc':
+                return sorted.sort((a, b) => b.pending_amount - a.pending_amount);
+            case 'pending_asc':
+                return sorted.sort((a, b) => a.pending_amount - b.pending_amount);
+            case 'name_asc':
+                return sorted.sort((a, b) => a.name.localeCompare(b.name));
+            case 'name_desc':
+                return sorted.sort((a, b) => b.name.localeCompare(a.name));
+            case 'class_asc':
+                return sorted.sort((a, b) => {
+                    const classOrder = classOptions.indexOf(a.student_class) - classOptions.indexOf(b.student_class);
+                    return classOrder !== 0 ? classOrder : a.name.localeCompare(b.name);
+                });
+            default:
+                return sorted;
+        }
+    };
+
     const exportToExcel = () => {
         // Simple CSV export
         const headers = ['Student ID', 'Name', 'Class', 'Total Due', 'Paid', 'Pending Amount'];
-        const rows = pendingFees.map(s => [s.student_id, s.name, s.student_class, s.total_due, s.total_paid, s.pending_amount]);
+        const rows = getSortedFees().map(s => [s.student_id, s.name, s.student_class, s.total_due, s.total_paid, s.pending_amount]);
 
         let csvContent = "data:text/csv;charset=utf-8,"
             + headers.join(",") + "\n"
@@ -87,7 +124,7 @@ function Dashboard() {
         <div className="p-4">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-3xl font-semibold">Dashboard</h2>
-                <div className="flex gap-4 bg-white p-3 rounded-lg shadow-sm">
+                <div className="flex gap-4 bg-white p-3 rounded-lg shadow-sm flex-wrap">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">Session</label>
                         <select
@@ -125,12 +162,21 @@ function Dashboard() {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">As of Date</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">From Date</label>
                         <input
                             type="date"
                             className="bg-transparent border-none focus:ring-0 text-sm font-semibold"
-                            value={filters.date}
-                            onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                            value={filters.date_from}
+                            onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase">To Date</label>
+                        <input
+                            type="date"
+                            className="bg-transparent border-none focus:ring-0 text-sm font-semibold"
+                            value={filters.date_to}
+                            onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
                         />
                     </div>
                 </div>
@@ -165,7 +211,21 @@ function Dashboard() {
                         <h3 className="text-2xl font-bold text-gray-800">Student Fees Detail</h3>
                         <p className="text-gray-500 text-sm mt-1 font-medium">Session-wise fee breakdown and collection status</p>
                     </div>
-                    <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="flex items-center gap-4 w-full md:w-auto flex-wrap">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sort By</label>
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                                <option value="pending_desc">Pending (High to Low)</option>
+                                <option value="pending_asc">Pending (Low to High)</option>
+                                <option value="name_asc">Name (A-Z)</option>
+                                <option value="name_desc">Name (Z-A)</option>
+                                <option value="class_asc">Class (Ascending)</option>
+                            </select>
+                        </div>
                         <label className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-100 transition">
                             <input
                                 type="checkbox"
@@ -192,7 +252,7 @@ function Dashboard() {
                                 {filters.installment ? (
                                     <>
                                         {/* Dynamic headers for fee heads if installment selected */}
-                                        {pendingFees.length > 0 && Object.keys(pendingFees[0].installment_data[filters.installment]?.heads || {}).map(head => (
+                                        {getSortedFees().length > 0 && Object.keys(getSortedFees()[0].installment_data[filters.installment]?.heads || {}).map(head => (
                                             <th key={head} className="px-6 py-5 text-right text-xs font-black text-gray-600 uppercase tracking-widest">{head}</th>
                                         ))}
                                         {/* Added Totals for Installment */}
@@ -209,12 +269,12 @@ function Dashboard() {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-50">
-                            {pendingFees.length === 0 ? (
+                            {getSortedFees().length === 0 ? (
                                 <tr>
                                     <td colSpan="6" className="px-6 py-12 text-center text-gray-400 font-medium italic">No students found for this selection.</td>
                                 </tr>
                             ) : (
-                                pendingFees.map((s) => (
+                                getSortedFees().map((s) => (
                                     <tr key={s.id} className="hover:bg-gray-50 transition group">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <p className="text-sm font-bold text-gray-800">{s.name}</p>
@@ -225,7 +285,7 @@ function Dashboard() {
                                         </td>
                                         {filters.installment ? (
                                             <>
-                                                {Object.keys(pendingFees[0].installment_data[filters.installment]?.heads || {}).map(head => {
+                                                {Object.keys(getSortedFees()[0].installment_data[filters.installment]?.heads || {}).map(head => {
                                                     const details = s.installment_data[filters.installment]?.heads[head] || { due: 0, paid: 0, pending: 0 };
                                                     return (
                                                         <td key={head} className="px-6 py-4 whitespace-nowrap text-right">

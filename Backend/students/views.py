@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from django.db.models import Sum, Q, Max
 from .models import Student
 from .serializers import StudentSerializer
-from fees.models import FeeHead, FeeTransaction, FeeAmount, GlobalFeeSetting
+from fees.models import FeeHead, FeeTransaction, FeeAmount, GlobalFeeSetting, StudentFeeEnrollment
 from datetime import datetime
 
 class StudentViewSet(viewsets.ModelViewSet):
@@ -20,7 +20,11 @@ class StudentViewSet(viewsets.ModelViewSet):
     def stats(self, request):
         session = request.query_params.get('session')
         student_class = request.query_params.get('student_class')
-        date_at = request.query_params.get('date', datetime.now().strftime('%Y-%m-%d'))
+        installment = request.query_params.get('installment')
+        
+        # Date range support - use date_from and date_to instead of single date
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to', datetime.now().strftime('%Y-%m-%d'))
 
         students = Student.objects.all()
         if student_class:
@@ -36,8 +40,16 @@ class StudentViewSet(viewsets.ModelViewSet):
             transactions = transactions.filter(fee_head__session=session)
         if student_class:
             transactions = transactions.filter(student__student_class=student_class)
-        if date_at:
-            transactions = transactions.filter(payment_date__lte=date_at)
+        
+        # Date range filtering
+        if date_from:
+            transactions = transactions.filter(payment_date__gte=date_from)
+        if date_to:
+            transactions = transactions.filter(payment_date__lte=date_to)
+        
+        # Installment filtering - if specific installment selected
+        if installment:
+            transactions = transactions.filter(installment_number=installment)
 
         total_collected = transactions.aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0
 
@@ -45,6 +57,13 @@ class StudentViewSet(viewsets.ModelViewSet):
         heads = FeeHead.objects.all()
         if session:
             heads = heads.filter(session=session)
+        
+        # Get global settings for installment count
+        global_settings = GlobalFeeSetting.objects.filter(session=session).first()
+        if not global_settings:
+            g_inst_count = 4  # Default
+        else:
+            g_inst_count = global_settings.installment_count
         
         total_expected = 0
         for student in students:
@@ -57,8 +76,24 @@ class StudentViewSet(viewsets.ModelViewSet):
                     continue
 
                 try:
-                    amt = FeeAmount.objects.get(fee_head=head, class_name=student.student_class).amount
-                    total_expected += amt
+                    total_amt = float(FeeAmount.objects.get(fee_head=head, class_name=student.student_class).amount)
+                    
+                    # If installment filter is applied, calculate only for that installment
+                    if installment:
+                        # Determine installment count for this fee head
+                        if head.frequency == 'ONCE':
+                            inst_count = 1
+                        else:
+                            inst_count = g_inst_count
+                        
+                        # Only include if this installment is valid for this fee head
+                        if int(installment) <= inst_count:
+                            inst_amt = total_amt / inst_count
+                            total_expected += inst_amt
+                    else:
+                        # No installment filter - include full amount
+                        total_expected += total_amt
+                        
                 except FeeAmount.DoesNotExist:
                     continue
         
@@ -115,7 +150,6 @@ class StudentViewSet(viewsets.ModelViewSet):
 
                 try:
                     total_amt = float(FeeAmount.objects.get(fee_head=head, class_name=student.student_class).amount)
-                    total_expected += total_amt
                     
                     if head.frequency == 'ONCE':
                         inst_count = 1
@@ -125,6 +159,21 @@ class StudentViewSet(viewsets.ModelViewSet):
                     inst_amt = total_amt / inst_count
                     
                     for i in range(1, inst_count + 1):
+                        # Check if student is enrolled for this fee head + installment
+                        enrollment = StudentFeeEnrollment.objects.filter(
+                            student=student,
+                            fee_head=head,
+                            session=session,
+                            installment_number=i
+                        ).first()
+                        
+                        # If enrollment exists and is_enrolled=False, skip this installment
+                        if enrollment and not enrollment.is_enrolled:
+                            continue
+                        
+                        # Otherwise, include in calculation (default behavior)
+                        total_expected += inst_amt
+                        
                         paid_for_inst = float(FeeTransaction.objects.filter(
                             student=student, fee_head=head, installment_number=i
                         ).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
@@ -311,4 +360,129 @@ class StudentViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'])
+    def manage_enrollment(self, request, pk=None):
+        """
+        Manage fee enrollments for a student.
+        POST body: {
+            "fee_head_id": 1,
+            "session": "2026-27",
+            "enrollments": {
+                "1": true,  // enrolled in installment 1
+                "2": true,
+                "3": false, // opted out of installment 3
+                "4": false
+            }
+        }
+        """
+        student = self.get_object()
+        fee_head_id = request.data.get('fee_head_id')
+        session = request.data.get('session')
+        enrollments = request.data.get('enrollments', {})
+        
+        if not fee_head_id or not session:
+            return Response({'error': 'fee_head_id and session are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            fee_head = FeeHead.objects.get(id=fee_head_id)
+        except FeeHead.DoesNotExist:
+            return Response({'error': 'Fee head not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Update or create enrollment records
+        for inst_num_str, is_enrolled in enrollments.items():
+            inst_num = int(inst_num_str)
+            
+            # Only create record if opted OUT (is_enrolled=False)
+            # or if explicitly setting to enrolled (for clarity)
+            StudentFeeEnrollment.objects.update_or_create(
+                student=student,
+                fee_head=fee_head,
+                session=session,
+                installment_number=inst_num,
+                defaults={'is_enrolled': is_enrolled}
+            )
+        
+        return Response({'success': True, 'message': 'Enrollments updated'})
+    
+    @action(detail=True, methods=['get'])
+    def get_enrollments(self, request, pk=None):
+        """
+        Get all fee enrollments for a student in a session.
+        Query params: ?session=2026-27
+        """
+        student = self.get_object()
+        session = request.query_params.get('session')
+        
+        if not session:
+            return Response({'error': 'session parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        enrollments = StudentFeeEnrollment.objects.filter(
+            student=student,
+            session=session
+        ).select_related('fee_head')
+        
+        from fees.serializers import StudentFeeEnrollmentSerializer
+        serializer = StudentFeeEnrollmentSerializer(enrollments, many=True)
+        
+        return Response(serializer.data)
+
+
+# Authentication Views
+from django.contrib.auth import authenticate, login, logout
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+import json
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    try:
+        data = json.loads(request.body)
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return JsonResponse({'error': 'Username and password are required'}, status=400)
+        
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            return JsonResponse({
+                'success': True,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'is_staff': user.is_staff,
+                }
+            })
+        else:
+            return JsonResponse({'error': 'Invalid credentials'}, status=401)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@api_view(['POST'])
+def logout_view(request):
+    logout(request)
+    return JsonResponse({'success': True})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_auth(request):
+    if request.user.is_authenticated:
+        return JsonResponse({
+            'authenticated': True,
+            'user': {
+                'id': request.user.id,
+                'username': request.user.username,
+                'email': request.user.email,
+                'is_staff': request.user.is_staff,
+            }
+        })
+    else:
+        return JsonResponse({'authenticated': False})
 

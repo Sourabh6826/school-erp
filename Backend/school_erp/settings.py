@@ -55,8 +55,28 @@ INSTALLED_APPS = [
     'fees',
     'inventory',
 ]
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'https://school-erp-frontend-etrn.onrender.com').split(',')
-CORS_ALLOW_ALL_ORIGINS = True
+
+# CORS Configuration - Use production frontend URL from .env
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() 
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') 
+    if origin.strip()
+]
+
+# Add localhost for local development
+if DEBUG:
+    CORS_ALLOWED_ORIGINS.extend([
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ])
+
+# Fallback if no CORS origins set
+if not CORS_ALLOWED_ORIGINS:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOW_CREDENTIALS = True  # Required for session authentication
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -81,7 +101,7 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.messages',
             ],
         },
     },
@@ -141,3 +161,31 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Session Configuration for Production
+SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
+SESSION_COOKIE_SECURE = True  # Required for HTTPS in production
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
+SESSION_COOKIE_AGE = 86400  # 24 hours
+
+# CSRF Configuration - Use production URLs from .env
+CSRF_TRUSTED_ORIGINS = [
+    os.getenv('RENDER_EXTERNAL_HOSTNAME', 'https://school-fees-erp.onrender.com'),
+    os.getenv('CORS_ALLOWED_ORIGINS', 'https://school-erp-frontend-etrn.onrender.com'),
+]
+
+# Add localhost for local development
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend([
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ])
+    # For local development, disable secure cookie
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = 'Lax'
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

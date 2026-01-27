@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction, FeeAmount, GlobalFeeSetting, Receipt
+from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction, FeeAmount, GlobalFeeSetting, Receipt, StudentFeeEnrollment
 
 class GlobalFeeSettingSerializer(serializers.ModelSerializer):
     class Meta:
@@ -60,3 +60,13 @@ class ReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Receipt
         fields = ['id', 'receipt_no', 'payment_date', 'student', 'student_name', 'student_uid', 'total_amount', 'remarks', 'transactions']
+
+class StudentFeeEnrollmentSerializer(serializers.ModelSerializer):
+    fee_head_name = serializers.CharField(source='fee_head.name', read_only=True)
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    
+    class Meta:
+        model = StudentFeeEnrollment
+        fields = ['id', 'student', 'student_name', 'fee_head', 'fee_head_name', 
+                  'session', 'installment_number', 'is_enrolled', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
