@@ -1,5 +1,25 @@
 from rest_framework import serializers
-from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction, FeeAmount, GlobalFeeSetting, Receipt, StudentFeeEnrollment
+from .models import (
+    FeeHead, FeeStructure, StudentFee, FeeTransaction, 
+    FeeAmount, GlobalFeeSetting, Receipt, StudentFeeEnrollment,
+    BankStatementEntry
+)
+
+class BankStatementEntrySerializer(serializers.ModelSerializer):
+    matched_transaction_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BankStatementEntry
+        fields = '__all__'
+    
+    def get_matched_transaction_details(self, obj):
+        if obj.matched_transaction:
+            return {
+                'student_name': obj.matched_transaction.student.name,
+                'amount': obj.matched_transaction.amount_paid,
+                'date': obj.matched_transaction.payment_date
+            }
+        return None
 
 class GlobalFeeSettingSerializer(serializers.ModelSerializer):
     class Meta:

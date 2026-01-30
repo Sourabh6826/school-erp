@@ -130,8 +130,9 @@ class StudentViewSet(viewsets.ModelViewSet):
             if g_inst_count == 0: g_inst_count = 1
 
             # 3. Fetch All Fee Heads for the session
-            heads = FeeHead.objects.filter(session=session)
-            head_ids = list(heads.values_list('id', flat=True))
+            heads_qs = FeeHead.objects.filter(session=session)
+            heads = list(heads_qs) # Force evaluation once
+            head_ids = [h.id for h in heads]
             
             # 4. Bulk Fetch Fee Amounts
             amounts_qs = FeeAmount.objects.filter(fee_head__in=heads)
@@ -141,7 +142,6 @@ class StudentViewSet(viewsets.ModelViewSet):
             # 5. Bulk Fetch Transactions
             transactions_qs = FeeTransaction.objects.filter(student__in=students, fee_head__in=heads)
             # Map: (student_id, fee_head_id, installment_number) -> total_paid
-            # We use a nested dict or a composite key
             trans_map = {}
             for t in transactions_qs:
                 key = (t.student_id, t.fee_head_id, t.installment_number)
@@ -153,8 +153,11 @@ class StudentViewSet(viewsets.ModelViewSet):
             enroll_map = {(e.student_id, e.fee_head_id, e.installment_number): e.is_enrolled for e in enrollments_qs}
 
             fee_detail_list = []
+            
+            # Convert students to list to prevent re-querying count etc
+            student_list = list(students)
 
-            for student in students:
+            for student in student_list:
                 # Pre-filter heads applicable to this class in memory
                 student_class_heads = [h for h in heads if (h.id, student.student_class) in amounts_map]
                 
@@ -164,52 +167,58 @@ class StudentViewSet(viewsets.ModelViewSet):
                 installment_data = {i: {'heads': {}} for i in range(1, g_inst_count + 1)}
 
                 for head in student_class_heads:
-                    # Transport logic
-                    if head.is_transport_fee and (not student.has_transport or student.transport_fee_head_id != head.id):
-                        continue
-
-                    total_amt = amounts_map.get((head.id, student.student_class), 0)
-                    inst_count = 1 if head.frequency == 'ONCE' else g_inst_count
-                    inst_amt = total_amt / inst_count
-                    
-                    display_name = "Transportation Fees" if head.is_transport_fee else head.name
-
-                    for i in range(1, inst_count + 1):
-                        # Use g_inst_count for installment_data indexing, but inst_count for loop
-                        # If a head is 'ONCE', it only goes into installment 1
-                        target_inst = i
-                        
-                        # Check enrollment (Default is True if no record)
-                        is_enrolled = enroll_map.get((student.id, head.id, i), True)
-                        if not is_enrolled:
+                    try:
+                        # Transport logic
+                        if head.is_transport_fee and (not student.has_transport or student.transport_fee_head_id != head.id):
                             continue
+
+                        total_amt = amounts_map.get((head.id, student.student_class), 0)
+                        if total_amt == 0: continue
+
+                        inst_count = 1 if head.frequency == 'ONCE' else g_inst_count
+                        if inst_count <= 0: inst_count = 1
                         
-                        total_expected += inst_amt
+                        inst_amt = total_amt / inst_count
                         
-                        # Get paid amount from map
-                        paid_amt = trans_map.get((student.id, head.id, i), 0)
-                        total_paid += paid_amt
-                        
-                        if target_inst not in installment_data:
-                            installment_data[target_inst] = {'heads': {}}
+                        display_name = "Transportation Fees" if head.is_transport_fee else head.name
+
+                        for i in range(1, inst_count + 1):
+                            target_inst = i
                             
-                        if display_name not in installment_data[target_inst]['heads']:
-                            installment_data[target_inst]['heads'][display_name] = {'due': 0, 'paid': 0, 'pending': 0}
+                            # Check enrollment (Default is True if no record)
+                            is_enrolled = enroll_map.get((student.id, head.id, i), True)
+                            if not is_enrolled:
+                                continue
                             
-                        installment_data[target_inst]['heads'][display_name]['due'] += inst_amt
-                        installment_data[target_inst]['heads'][display_name]['paid'] += paid_amt
-                        installment_data[target_inst]['heads'][display_name]['pending'] += (inst_amt - paid_amt)
+                            total_expected += inst_amt
+                            
+                            # Get paid amount from map
+                            paid_amt = trans_map.get((student.id, head.id, i), 0)
+                            total_paid += paid_amt
+                            
+                            if target_inst not in installment_data:
+                                installment_data[target_inst] = {'heads': {}}
+                                
+                            if display_name not in installment_data[target_inst]['heads']:
+                                installment_data[target_inst]['heads'][display_name] = {'due': 0, 'paid': 0, 'pending': 0}
+                                
+                            installment_data[target_inst]['heads'][display_name]['due'] += inst_amt
+                            installment_data[target_inst]['heads'][display_name]['paid'] += paid_amt
+                            installment_data[target_inst]['heads'][display_name]['pending'] += (inst_amt - paid_amt)
+                    except Exception as inner_e:
+                        print(f"Skipping head {head.name} for student {student.name}: {str(inner_e)}")
+                        continue
                 
                 balance = total_expected - total_paid
-                if show_all or balance > 0:
+                if show_all or balance > 0.01: # Small float margin
                     fee_detail_list.append({
                         'id': student.id,
                         'student_id': student.student_id,
                         'name': student.name,
                         'student_class': student.student_class,
-                        'total_due': total_expected,
-                        'total_paid': total_paid,
-                        'pending_amount': balance,
+                        'total_due': round(total_expected, 2),
+                        'total_paid': round(total_paid, 2),
+                        'pending_amount': round(balance, 2),
                         'installment_data': installment_data
                     })
             
@@ -218,9 +227,9 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             import traceback
-            print(f"Error in pending_fees: {str(e)}")
+            print(f"CRITICAL Error in pending_fees: {str(e)}")
             print(traceback.format_exc())
-            return Response({'error': str(e)}, status=500)
+            return Response({'error': str(e), 'traceback': traceback.format_exc()}, status=500)
 
     @action(detail=True, methods=['get'])
     def ledger(self, request, pk=None):

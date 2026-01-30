@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Fees from './pages/Fees';
 import Ledger from './pages/Ledger';
+import Reconciliation from './pages/Reconciliation';
 
 function AppContent() {
   const { user, logout } = useAuth();
@@ -37,6 +38,7 @@ function AppContent() {
                     <Link to="/students" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Students</Link>
                     <Link to="/fees" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Fees</Link>
                     <Link to="/ledger" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Ledger</Link>
+                    <Link to="/reconciliation" className="block px-6 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600">Reconciliation</Link>
                   </nav>
 
                   {/* User Info & Logout */}
@@ -66,6 +68,7 @@ function AppContent() {
                     <Route path="/students" element={<Students />} />
                     <Route path="/fees" element={<Fees />} />
                     <Route path="/ledger" element={<Ledger />} />
+                    <Route path="/reconciliation" element={<Reconciliation />} />
                   </Routes>
                 </main>
               </div>

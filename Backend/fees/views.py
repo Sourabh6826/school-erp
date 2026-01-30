@@ -1,9 +1,16 @@
-from rest_framework import viewsets, filters
+import csv
+import io
+from datetime import datetime, timedelta
+from rest_framework import viewsets, filters, status
 from rest_framework.response import Response
-from rest_framework import status
-from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction, FeeAmount, GlobalFeeSetting, Receipt
-from .serializers import FeeHeadSerializer, FeeStructureSerializer, StudentFeeSerializer, FeeTransactionSerializer, GlobalFeeSettingSerializer, ReceiptSerializer
-from django.db.models import Max
+from rest_framework.decorators import action
+from .models import FeeHead, FeeStructure, StudentFee, FeeTransaction, FeeAmount, GlobalFeeSetting, Receipt, BankStatementEntry
+from .serializers import (
+    FeeHeadSerializer, FeeStructureSerializer, StudentFeeSerializer, 
+    FeeTransactionSerializer, GlobalFeeSettingSerializer, ReceiptSerializer,
+    BankStatementEntrySerializer
+)
+from django.db.models import Max, Sum
 from django.db import transaction
 
 class FeeHeadViewSet(viewsets.ModelViewSet):
@@ -173,3 +180,114 @@ class GlobalFeeSettingViewSet(viewsets.ModelViewSet):
         serializer.save() # Use .save() instead of perform_create for updates
         
         return Response(serializer.data, status=status.HTTP_200_OK if instance else status.HTTP_201_CREATED)
+
+class BankReconciliationViewSet(viewsets.ModelViewSet):
+    queryset = BankStatementEntry.objects.all().order_by('-date')
+    serializer_class = BankStatementEntrySerializer
+
+    @action(detail=False, methods=['post'])
+    def upload_statement(self, request):
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'No file uploaded'}, status=400)
+        
+        try:
+            decoded_file = file_obj.read().decode('utf-8')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+            
+            entries_created = 0
+            for row in reader:
+                try:
+                    # Generic mapping: detect common bank statement column names
+                    date_val = row.get('Date') or row.get('date') or row.get('Transaction Date')
+                    desc = row.get('Description') or row.get('description') or row.get('Narration') or ''
+                    amt = row.get('Amount') or row.get('amount') or row.get('Credit') or row.get('Transaction Amount')
+                    ref = row.get('Reference') or row.get('Ref No') or row.get('Cheque/Ref No') or ''
+                    
+                    if not (date_val and amt):
+                        continue
+                    
+                    # Ensure amount is absolute (we usually look for credits in bank reco)
+                    # but for now we store raw value
+                    try:
+                        clean_amt = float(str(amt).replace(',', ''))
+                    except:
+                        continue
+                        
+                    # Parse date
+                    parsed_date = None
+                    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%b-%Y'):
+                        try:
+                            parsed_date = datetime.strptime(date_val.strip(), fmt).date()
+                            break
+                        except:
+                            continue
+                            
+                    if not parsed_date:
+                        continue
+                        
+                    BankStatementEntry.objects.create(
+                        date=parsed_date,
+                        description=desc,
+                        amount=clean_amt,
+                        ref_number=ref
+                    )
+                    entries_created += 1
+                except Exception as row_e:
+                    print(f"Row skip error: {row_e}")
+                    continue
+            
+            return Response({'message': f'Successfully imported {entries_created} entries'})
+        except Exception as e:
+            return Response({'error': f'Failed to parse file: {str(e)}'}, status=500)
+
+    @action(detail=False, methods=['post'])
+    def auto_match(self, request):
+        unreconciled = BankStatementEntry.objects.filter(is_reconciled=False)
+        matched_count = 0
+        
+        for entry in unreconciled:
+            # Range: +/- 3 days
+            start_date = entry.date - timedelta(days=3)
+            end_date = entry.date + timedelta(days=3)
+            
+            # Match by total_amount in FeeTransaction
+            # Note: FeeTransaction.amount_paid is Decimal
+            candidates = FeeTransaction.objects.filter(
+                amount_paid=entry.amount,
+                payment_date__range=[start_date, end_date],
+                bank_matches__isnull=True
+            )
+            
+            if candidates.count() == 1:
+                match = candidates.first()
+                entry.matched_transaction = match
+                entry.is_reconciled = True
+                entry.save()
+                matched_count += 1
+            elif candidates.count() > 1:
+                # Try exact date
+                exact = candidates.filter(payment_date=entry.date)
+                if exact.count() == 1:
+                    match = exact.first()
+                    entry.matched_transaction = match
+                    entry.is_reconciled = True
+                    entry.save()
+                    matched_count += 1
+                    
+        return Response({'message': f'Successfully auto-matched {matched_count} entries'})
+
+    @action(detail=True, methods=['post'])
+    def reconcile_manual(self, request, pk=None):
+        entry = self.get_object()
+        transaction_id = request.data.get('transaction_id')
+        
+        try:
+            fee_tx = FeeTransaction.objects.get(id=transaction_id)
+            entry.matched_transaction = fee_tx
+            entry.is_reconciled = True
+            entry.save()
+            return Response({'message': 'Manual reconciliation successful'})
+        except:
+            return Response({'error': 'Transaction not found or invalid'}, status=status.HTTP_404_NOT_FOUND)

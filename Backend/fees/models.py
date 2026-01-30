@@ -149,3 +149,15 @@ class StudentFeeEnrollment(models.Model):
     def __str__(self):
         status = "Enrolled" if self.is_enrolled else "Opted Out"
         return f"{self.student.name} - {self.fee_head.name} - Inst {self.installment_number} - {status}"
+class BankStatementEntry(models.Model):
+    date = models.DateField()
+    description = models.TextField()
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    ref_number = models.CharField(max_length=100, blank=True, null=True)
+    is_reconciled = models.BooleanField(default=False)
+    matched_transaction = models.ForeignKey(FeeTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_matches')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.date} - {self.amount} - {self.description[:30]}"
