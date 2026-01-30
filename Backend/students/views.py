@@ -432,12 +432,18 @@ class StudentViewSet(viewsets.ModelViewSet):
 from django.contrib.auth import authenticate, login, logout
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.authentication import SessionAuthentication
 import json
+
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return  # To not perform the csrf check previously happening
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([CsrfExemptSessionAuthentication])
 def login_view(request):
     try:
         data = json.loads(request.body)
@@ -466,12 +472,14 @@ def login_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 @api_view(['POST'])
+@authentication_classes([CsrfExemptSessionAuthentication])
 def logout_view(request):
     logout(request)
     return JsonResponse({'success': True})
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@authentication_classes([CsrfExemptSessionAuthentication])
 def check_auth(request):
     if request.user.is_authenticated:
         return JsonResponse({
