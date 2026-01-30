@@ -109,109 +109,121 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def pending_fees(self, request):
-        session = request.query_params.get('session')
-        student_class = request.query_params.get('student_class')
-        show_all = request.query_params.get('show_all') == 'true'
+        try:
+            session = request.query_params.get('session')
+            student_class = request.query_params.get('student_class')
+            show_all = request.query_params.get('show_all') == 'true'
 
-        students = Student.objects.all()
-        if student_class:
-            students = students.filter(student_class=student_class)
-        
-        heads = FeeHead.objects.all()
-        if session:
-            heads = heads.filter(session=session)
-        
-        fee_detail_list = []
-        
-        # Get global settings for current session
-        global_settings = GlobalFeeSetting.objects.filter(session=session).first()
-        if not global_settings:
-            # Fallback or default if no settings exist
-            g_inst_count = 1
-        else:
-            g_inst_count = global_settings.installment_count
-
-        # Filter by student_id if provided (for payment modal)
-        student_id_param = request.query_params.get('student_id')
-        if student_id_param:
-            students = students.filter(id=student_id_param)
-
-        for student in students:
-            applicable_heads = heads.filter(amounts__class_name=student.student_class)
-            total_expected = 0
+            students = Student.objects.all()
+            if student_class:
+                students = students.filter(student_class=student_class)
             
-            installment_data = {}
-            for i in range(1, g_inst_count + 1):
-                installment_data[i] = {'heads': {}}
+            heads = FeeHead.objects.all()
+            if session:
+                heads = heads.filter(session=session)
+            
+            fee_detail_list = []
+            
+            # Get global settings for current session
+            global_settings = GlobalFeeSetting.objects.filter(session=session).first()
+            if not global_settings:
+                # Fallback or default if no settings exist
+                g_inst_count = 1
+            else:
+                g_inst_count = global_settings.installment_count
 
-            for head in applicable_heads:
-                if head.is_transport_fee and (not student.has_transport or student.transport_fee_head_id != head.id):
-                    continue
+            # Filter by student_id if provided (for payment modal)
+            student_id_param = request.query_params.get('student_id')
+            if student_id_param:
+                students = students.filter(id=student_id_param)
 
-                try:
-                    total_amt = float(FeeAmount.objects.get(fee_head=head, class_name=student.student_class).amount)
-                    
-                    if head.frequency == 'ONCE':
-                        inst_count = 1
-                    else:
-                        inst_count = g_inst_count # Use global count
-                    
-                    inst_amt = total_amt / inst_count
-                    
-                    for i in range(1, inst_count + 1):
-                        # Check if student is enrolled for this fee head + installment
-                        enrollment = StudentFeeEnrollment.objects.filter(
-                            student=student,
-                            fee_head=head,
-                            session=session,
-                            installment_number=i
-                        ).first()
+            for student in students:
+                applicable_heads = heads.filter(amounts__class_name=student.student_class)
+                total_expected = 0
+                
+                installment_data = {}
+                for i in range(1, g_inst_count + 1):
+                    installment_data[i] = {'heads': {}}
+
+                for head in applicable_heads:
+                    if head.is_transport_fee and (not student.has_transport or student.transport_fee_head_id != head.id):
+                        continue
+
+                    try:
+                        total_amt = float(FeeAmount.objects.get(fee_head=head, class_name=student.student_class).amount)
                         
-                        # If enrollment exists and is_enrolled=False, skip this installment
-                        if enrollment and not enrollment.is_enrolled:
-                            continue
+                        if head.frequency == 'ONCE':
+                            inst_count = 1
+                        else:
+                            inst_count = g_inst_count # Use global count
                         
-                        # Otherwise, include in calculation (default behavior)
-                        total_expected += inst_amt
-                        
-                        paid_for_inst = float(FeeTransaction.objects.filter(
-                            student=student, fee_head=head, installment_number=i
-                        ).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
-                        
-                        display_name = "Transportation Fees" if head.is_transport_fee else head.name
-                        
-                        if display_name not in installment_data[i]['heads']:
-                             installment_data[i]['heads'][display_name] = {
-                                'due': 0,
-                                'paid': 0,
-                                'pending': 0
-                            }
+                        if inst_count == 0:
+                            continue # Avoid division by zero
                             
-                        installment_data[i]['heads'][display_name]['due'] += inst_amt
-                        installment_data[i]['heads'][display_name]['paid'] += paid_for_inst
-                        installment_data[i]['heads'][display_name]['pending'] += (inst_amt - paid_for_inst)
-                except FeeAmount.DoesNotExist:
-                    continue
+                        inst_amt = total_amt / inst_count
+                        
+                        for i in range(1, inst_count + 1):
+                            # Ensure installment_data has the key (might happen if inst_count > g_inst_count)
+                            if i not in installment_data:
+                                installment_data[i] = {'heads': {}}
+                                
+                            # Check if student is enrolled for this fee head + installment
+                            enrollment = StudentFeeEnrollment.objects.filter(
+                                student=student,
+                                fee_head=head,
+                                session=session,
+                                installment_number=i
+                            ).first()
+                            
+                            # If enrollment exists and is_enrolled=False, skip this installment
+                            if enrollment and not enrollment.is_enrolled:
+                                continue
+                            
+                            # Otherwise, include in calculation (default behavior)
+                            total_expected += inst_amt
+                            
+                            paid_for_inst = float(FeeTransaction.objects.filter(
+                                student=student, fee_head=head, installment_number=i
+                            ).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
+                            
+                            display_name = "Transportation Fees" if head.is_transport_fee else head.name
+                            
+                            if display_name not in installment_data[i]['heads']:
+                                installment_data[i]['heads'][display_name] = {
+                                    'due': 0,
+                                    'paid': 0,
+                                    'pending': 0
+                                }
+                                
+                            installment_data[i]['heads'][display_name]['due'] += inst_amt
+                            installment_data[i]['heads'][display_name]['paid'] += paid_for_inst
+                            installment_data[i]['heads'][display_name]['pending'] += (inst_amt - paid_for_inst)
+                    except FeeAmount.DoesNotExist:
+                        continue
+                
+                total_paid = float(FeeTransaction.objects.filter(student=student, fee_head__in=applicable_heads).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
+                
+                balance = float(total_expected) - total_paid
+                if show_all or balance > 0:
+                    fee_detail_list.append({
+                        'id': student.id,
+                        'student_id': student.student_id,
+                        'name': student.name,
+                        'student_class': student.student_class,
+                        'total_due': float(total_expected),
+                        'total_paid': total_paid,
+                        'pending_amount': balance,
+                        'installment_data': installment_data
+                    })
             
-            total_paid = float(FeeTransaction.objects.filter(student=student, fee_head__in=applicable_heads).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
-            
-            balance = float(total_expected) - total_paid
-            if show_all or balance > 0:
-                fee_detail_list.append({
-                    'id': student.id,
-                    'student_id': student.student_id,
-                    'name': student.name,
-                    'student_class': student.student_class,
-                    'total_due': float(total_expected),
-                    'total_paid': total_paid,
-                    'pending_amount': balance,
-                    'installment_data': installment_data
-                })
-        
-        # Sort highest to lowest
-        fee_detail_list.sort(key=lambda x: x['pending_amount'], reverse=True)
+            # Sort highest to lowest
+            fee_detail_list.sort(key=lambda x: x['pending_amount'], reverse=True)
 
-        return Response(fee_detail_list)
+            return Response(fee_detail_list)
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return Response({'error': str(e), 'traceback': traceback.format_exc()}, status=500)
 
     @action(detail=True, methods=['get'])
     def ledger(self, request, pk=None):
