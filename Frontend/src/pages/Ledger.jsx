@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import api from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function Ledger() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -120,7 +120,7 @@ function Ledger() {
                     </div>
 
                     {loading ? (
-                        <div className="py-12 text-center text-gray-400">Loading ledger data...</div>
+                        <LoadingSpinner message="Analyzing ledger entries..." />
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">

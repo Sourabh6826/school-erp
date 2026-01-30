@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import api from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function Dashboard() {
     const [stats, setStats] = useState({
@@ -265,15 +265,10 @@ function Dashboard() {
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto relative">
-                    {loading && (
-                        <div className="absolute inset-0 bg-white bg-opacity-60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center py-20">
-                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                            <p className="text-sm font-black text-blue-600 uppercase tracking-widest animate-pulse">Fetching Data...</p>
-                        </div>
-                    )}
+                <div className="overflow-x-auto relative min-h-[400px]">
+                    {loading && <LoadingSpinner message="Fetching live records..." />}
 
-                    {error && (
+                    {!loading && error && (
                         <div className="bg-red-50 border border-red-100 p-6 rounded-2xl mb-8 flex flex-col items-center text-center">
                             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-xl mb-4">⚠️</div>
                             <h4 className="font-bold text-red-800">Connection Issue</h4>

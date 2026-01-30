@@ -18,94 +18,96 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        session = request.query_params.get('session')
-        student_class = request.query_params.get('student_class')
-        installment = request.query_params.get('installment')
-        
-        # Date range support - use date_from and date_to instead of single date
-        date_from = request.query_params.get('date_from')
-        date_to = request.query_params.get('date_to', datetime.now().strftime('%Y-%m-%d'))
+        try:
+            session = request.query_params.get('session')
+            student_class = request.query_params.get('student_class')
+            installment = request.query_params.get('installment')
+            date_from = request.query_params.get('date_from')
+            date_to = request.query_params.get('date_to', datetime.now().strftime('%Y-%m-%d'))
 
-        students = Student.objects.all()
-        if student_class:
-            students = students.filter(student_class=student_class)
-        
-        total_students = students.count()
-        active_count = students.filter(status='Active').count()
-        tc_count = students.filter(status='TC').count()
+            # 1. Fetch Students
+            students_qs = Student.objects.all()
+            if student_class:
+                students_qs = students_qs.filter(student_class=student_class)
+            
+            # Use values to speed up base stats
+            student_list = list(students_qs.values('id', 'student_class', 'status', 'has_transport', 'transport_fee_head_id'))
+            
+            total_students = len(student_list)
+            active_count = sum(1 for s in student_list if s['status'] == 'Active')
+            tc_count = sum(1 for s in student_list if s['status'] == 'TC')
 
-        # Fee collection logic
-        transactions = FeeTransaction.objects.all()
-        if session:
-            transactions = transactions.filter(fee_head__session=session)
-        if student_class:
-            transactions = transactions.filter(student__student_class=student_class)
-        
-        # Date range filtering
-        if date_from:
-            transactions = transactions.filter(payment_date__gte=date_from)
-        if date_to:
-            transactions = transactions.filter(payment_date__lte=date_to)
-        
-        # Installment filtering - if specific installment selected
-        if installment:
-            transactions = transactions.filter(installment_number=installment)
+            # 2. Fetch Global Settings
+            global_settings = GlobalFeeSetting.objects.filter(session=session).first()
+            g_inst_count = global_settings.installment_count if global_settings else 1
+            if g_inst_count == 0: g_inst_count = 1
 
-        total_collected = transactions.aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0
+            # 3. Fetch All Fee Heads for the session
+            heads = list(FeeHead.objects.filter(session=session))
+            
+            # 4. Bulk Fetch Fee Amounts
+            amounts_qs = FeeAmount.objects.filter(fee_head__in=heads)
+            amounts_map = {(a.fee_head_id, a.class_name): float(a.amount) for a in amounts_qs}
 
-        # Pending logic
-        heads = FeeHead.objects.all()
-        if session:
-            heads = heads.filter(session=session)
-        
-        # Get global settings for installment count
-        global_settings = GlobalFeeSetting.objects.filter(session=session).first()
-        if not global_settings:
-            g_inst_count = 4  # Default
-        else:
-            g_inst_count = global_settings.installment_count
-        
-        total_expected = 0
-        for student in students:
-            # For each student, find applicable fee heads
-            applicable_heads = heads.filter(amounts__class_name=student.student_class)
-            for head in applicable_heads:
-                if head.is_transport_fee and not student.has_transport:
-                    continue
-                if head.is_transport_fee and student.transport_fee_head_id != head.id:
-                    continue
+            # 5. Bulk Fetch Transactions (Filtered by date/installment if needed)
+            transactions_qs = FeeTransaction.objects.filter(fee_head__in=heads)
+            if student_class:
+                transactions_qs = transactions_qs.filter(student__student_class=student_class)
+            if date_from:
+                transactions_qs = transactions_qs.filter(payment_date__gte=date_from)
+            if date_to:
+                transactions_qs = transactions_qs.filter(payment_date__lte=date_to)
+            if installment:
+                transactions_qs = transactions_qs.filter(installment_number=installment)
 
-                try:
-                    total_amt = float(FeeAmount.objects.get(fee_head=head, class_name=student.student_class).amount)
+            total_collected = float(transactions_qs.aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
+
+            # 6. Bulk Fetch Enrollments (Opt-Outs) - Only needed if we want perfect accuracy for "Expected"
+            # For stats, we might simplify or be precise. Let's be precise.
+            enrollments_qs = StudentFeeEnrollment.objects.filter(session=session)
+            # Map: (student_id, fee_head_id, installment_number) -> is_enrolled
+            enroll_map = {(e.student_id, e.fee_head_id, e.installment_number): e.is_enrolled for e in enrollments_qs}
+
+            # 7. Calculate "Expected" in memory
+            total_expected = 0
+            for s in student_list:
+                # Get heads applicable to this class
+                for h in heads:
+                    amt = amounts_map.get((h.id, s['student_class']))
+                    if amt is None: continue
                     
-                    # If installment filter is applied, calculate only for that installment
+                    # Transport logic
+                    if h.is_transport_fee and (not s['has_transport'] or s['transport_fee_head_id'] != h.id):
+                        continue
+                    
+                    inst_count = 1 if h.frequency == 'ONCE' else g_inst_count
+                    
+                    # If specific installment requested
                     if installment:
-                        # Determine installment count for this fee head
-                        if head.frequency == 'ONCE':
-                            inst_count = 1
-                        else:
-                            inst_count = g_inst_count
-                        
-                        # Only include if this installment is valid for this fee head
-                        if int(installment) <= inst_count:
-                            inst_amt = total_amt / inst_count
-                            total_expected += inst_amt
+                        target_inst = int(installment)
+                        if target_inst <= inst_count:
+                            if enroll_map.get((s['id'], h.id, target_inst), True):
+                                total_expected += (amt / inst_count)
                     else:
-                        # No installment filter - include full amount
-                        total_expected += total_amt
-                        
-                except FeeAmount.DoesNotExist:
-                    continue
-        
-        total_pending = float(total_expected) - float(total_collected)
+                        # Sum all valid installments
+                        for i in range(1, inst_count + 1):
+                            if enroll_map.get((s['id'], h.id, i), True):
+                                total_expected += (amt / inst_count)
+            
+            total_pending = float(total_expected) - total_collected
 
-        return Response({
-            'total_students': total_students,
-            'active_students': active_count,
-            'tc_students': tc_count,
-            'total_collected': total_collected,
-            'total_pending': total_pending,
-        })
+            return Response({
+                'total_students': total_students,
+                'active_students': active_count,
+                'tc_students': tc_count,
+                'total_collected': total_collected,
+                'total_pending': max(0, total_pending), # Prevent negative due to overpayments
+            })
+        except Exception as e:
+            import traceback
+            print(f"Error in stats: {str(e)}")
+            print(traceback.format_exc())
+            return Response({'error': str(e)}, status=500)
 
     @action(detail=False, methods=['get'])
     def pending_fees(self, request):

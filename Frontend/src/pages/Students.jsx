@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import EnrollmentModal from '../components/EnrollmentModal';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function Students() {
     const [students, setStudents] = useState([]);
     const [feeHeads, setFeeHeads] = useState([]);
+    const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingStudent, setEditingStudent] = useState(null);
     const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
@@ -26,8 +28,17 @@ function Students() {
     const classOptions = ['Nursery', 'KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
 
     useEffect(() => {
-        fetchStudents();
-        fetchFeeHeads();
+        const loadInitial = async () => {
+            setLoading(true);
+            try {
+                await Promise.all([fetchStudents(), fetchFeeHeads()]);
+            } catch (err) {
+                console.error("Initial load error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadInitial();
     }, []);
 
     const fetchStudents = async () => {
@@ -158,8 +169,9 @@ function Students() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-100">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative min-h-[400px]">
+                {loading && <LoadingSpinner message="Gathering student records..." />}
+                <table className={`min-w-full divide-y divide-gray-100 transition-opacity duration-300 ${loading ? 'opacity-20' : 'opacity-100'}`}>
                     <thead className="bg-gray-50 bg-opacity-50">
                         <tr className="text-left text-[12px] font-black text-gray-600 uppercase tracking-widest">
                             <th className="px-6 py-5">S.No.</th>

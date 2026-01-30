@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 function Fees() {
     const [feeHeads, setFeeHeads] = useState([]);
@@ -42,14 +43,27 @@ function Fees() {
         late_fee_frequency: 'ONCE'
     });
     const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [payAll, setPayAll] = useState(false);
     const [activeTab, setActiveTab] = useState('config'); // 'config' | 'transactions'
 
     useEffect(() => {
-        fetchGlobalSettings();
-        fetchFeeHeads();
-        fetchStudents();
-        fetchTransactions();
+        const loadAll = async () => {
+            setLoading(true);
+            try {
+                await Promise.all([
+                    fetchGlobalSettings(),
+                    fetchFeeHeads(),
+                    fetchStudents(),
+                    fetchTransactions()
+                ]);
+            } catch (err) {
+                console.error("Fees load error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadAll();
     }, [globalSettings.session]);
 
     const fetchGlobalSettings = async () => {
@@ -535,7 +549,12 @@ function Fees() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 relative min-h-[400px]">
+                        {loading && (
+                            <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                <LoadingSpinner message="Syncing configurations..." />
+                            </div>
+                        )}
                         {/* Installment Fee Heads */}
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 min-h-[400px]">
                             <div className="flex justify-between items-center mb-6">
@@ -652,7 +671,12 @@ function Fees() {
             )}
 
             {activeTab === 'transactions' && (
-                <div className="space-y-8 animate-fade-in-up">
+                <div className="space-y-8 animate-fade-in-up relative min-h-[400px]">
+                    {loading && (
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                            <LoadingSpinner message="Loading transaction history..." />
+                        </div>
+                    )}
                     <div className="bg-white p-7 rounded-2xl shadow-sm border border-gray-100">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-gray-800">Recent Transactions</h3>
