@@ -434,12 +434,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny
-from rest_framework.authentication import SessionAuthentication
+from school_erp.authentication import CsrfExemptSessionAuthentication
 import json
-
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return  # To not perform the csrf check previously happening
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
