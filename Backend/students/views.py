@@ -113,117 +113,112 @@ class StudentViewSet(viewsets.ModelViewSet):
             session = request.query_params.get('session')
             student_class = request.query_params.get('student_class')
             show_all = request.query_params.get('show_all') == 'true'
+            student_id_param = request.query_params.get('student_id')
 
+            # 1. Fetch Students
             students = Student.objects.all()
             if student_class:
                 students = students.filter(student_class=student_class)
-            
-            heads = FeeHead.objects.all()
-            if session:
-                heads = heads.filter(session=session)
-            
-            fee_detail_list = []
-            
-            # Get global settings for current session
-            global_settings = GlobalFeeSetting.objects.filter(session=session).first()
-            if not global_settings:
-                # Fallback or default if no settings exist
-                g_inst_count = 1
-            else:
-                g_inst_count = global_settings.installment_count
-
-            # Filter by student_id if provided (for payment modal)
-            student_id_param = request.query_params.get('student_id')
             if student_id_param:
                 students = students.filter(id=student_id_param)
+            
+            # 2. Fetch Global Settings
+            global_settings = GlobalFeeSetting.objects.filter(session=session).first()
+            g_inst_count = global_settings.installment_count if global_settings else 1
+            if g_inst_count == 0: g_inst_count = 1
+
+            # 3. Fetch All Fee Heads for the session
+            heads = FeeHead.objects.filter(session=session)
+            head_ids = list(heads.values_list('id', flat=True))
+            
+            # 4. Bulk Fetch Fee Amounts
+            amounts_qs = FeeAmount.objects.filter(fee_head__in=heads)
+            # Map: (fee_head_id, class_name) -> amount
+            amounts_map = {(a.fee_head_id, a.class_name): float(a.amount) for a in amounts_qs}
+
+            # 5. Bulk Fetch Transactions
+            transactions_qs = FeeTransaction.objects.filter(student__in=students, fee_head__in=heads)
+            # Map: (student_id, fee_head_id, installment_number) -> total_paid
+            # We use a nested dict or a composite key
+            trans_map = {}
+            for t in transactions_qs:
+                key = (t.student_id, t.fee_head_id, t.installment_number)
+                trans_map[key] = trans_map.get(key, 0) + float(t.amount_paid)
+
+            # 6. Bulk Fetch Enrollments (Opt-Outs)
+            enrollments_qs = StudentFeeEnrollment.objects.filter(student__in=students, fee_head__in=heads, session=session)
+            # Map: (student_id, fee_head_id, installment_number) -> is_enrolled
+            enroll_map = {(e.student_id, e.fee_head_id, e.installment_number): e.is_enrolled for e in enrollments_qs}
+
+            fee_detail_list = []
 
             for student in students:
-                applicable_heads = heads.filter(amounts__class_name=student.student_class)
-                total_expected = 0
+                # Pre-filter heads applicable to this class in memory
+                student_class_heads = [h for h in heads if (h.id, student.student_class) in amounts_map]
                 
-                installment_data = {}
-                for i in range(1, g_inst_count + 1):
-                    installment_data[i] = {'heads': {}}
+                total_expected = 0
+                total_paid = 0
+                
+                installment_data = {i: {'heads': {}} for i in range(1, g_inst_count + 1)}
 
-                for head in applicable_heads:
+                for head in student_class_heads:
+                    # Transport logic
                     if head.is_transport_fee and (not student.has_transport or student.transport_fee_head_id != head.id):
                         continue
 
-                    try:
-                        total_amt = float(FeeAmount.objects.get(fee_head=head, class_name=student.student_class).amount)
+                    total_amt = amounts_map.get((head.id, student.student_class), 0)
+                    inst_count = 1 if head.frequency == 'ONCE' else g_inst_count
+                    inst_amt = total_amt / inst_count
+                    
+                    display_name = "Transportation Fees" if head.is_transport_fee else head.name
+
+                    for i in range(1, inst_count + 1):
+                        # Use g_inst_count for installment_data indexing, but inst_count for loop
+                        # If a head is 'ONCE', it only goes into installment 1
+                        target_inst = i
                         
-                        if head.frequency == 'ONCE':
-                            inst_count = 1
-                        else:
-                            inst_count = g_inst_count # Use global count
+                        # Check enrollment (Default is True if no record)
+                        is_enrolled = enroll_map.get((student.id, head.id, i), True)
+                        if not is_enrolled:
+                            continue
                         
-                        if inst_count == 0:
-                            continue # Avoid division by zero
-                            
-                        inst_amt = total_amt / inst_count
+                        total_expected += inst_amt
                         
-                        for i in range(1, inst_count + 1):
-                            # Ensure installment_data has the key (might happen if inst_count > g_inst_count)
-                            if i not in installment_data:
-                                installment_data[i] = {'heads': {}}
-                                
-                            # Check if student is enrolled for this fee head + installment
-                            enrollment = StudentFeeEnrollment.objects.filter(
-                                student=student,
-                                fee_head=head,
-                                session=session,
-                                installment_number=i
-                            ).first()
+                        # Get paid amount from map
+                        paid_amt = trans_map.get((student.id, head.id, i), 0)
+                        total_paid += paid_amt
+                        
+                        if target_inst not in installment_data:
+                            installment_data[target_inst] = {'heads': {}}
                             
-                            # If enrollment exists and is_enrolled=False, skip this installment
-                            if enrollment and not enrollment.is_enrolled:
-                                continue
+                        if display_name not in installment_data[target_inst]['heads']:
+                            installment_data[target_inst]['heads'][display_name] = {'due': 0, 'paid': 0, 'pending': 0}
                             
-                            # Otherwise, include in calculation (default behavior)
-                            total_expected += inst_amt
-                            
-                            paid_for_inst = float(FeeTransaction.objects.filter(
-                                student=student, fee_head=head, installment_number=i
-                            ).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
-                            
-                            display_name = "Transportation Fees" if head.is_transport_fee else head.name
-                            
-                            if display_name not in installment_data[i]['heads']:
-                                installment_data[i]['heads'][display_name] = {
-                                    'due': 0,
-                                    'paid': 0,
-                                    'pending': 0
-                                }
-                                
-                            installment_data[i]['heads'][display_name]['due'] += inst_amt
-                            installment_data[i]['heads'][display_name]['paid'] += paid_for_inst
-                            installment_data[i]['heads'][display_name]['pending'] += (inst_amt - paid_for_inst)
-                    except FeeAmount.DoesNotExist:
-                        continue
+                        installment_data[target_inst]['heads'][display_name]['due'] += inst_amt
+                        installment_data[target_inst]['heads'][display_name]['paid'] += paid_amt
+                        installment_data[target_inst]['heads'][display_name]['pending'] += (inst_amt - paid_amt)
                 
-                total_paid = float(FeeTransaction.objects.filter(student=student, fee_head__in=applicable_heads).aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0)
-                
-                balance = float(total_expected) - total_paid
+                balance = total_expected - total_paid
                 if show_all or balance > 0:
                     fee_detail_list.append({
                         'id': student.id,
                         'student_id': student.student_id,
                         'name': student.name,
                         'student_class': student.student_class,
-                        'total_due': float(total_expected),
+                        'total_due': total_expected,
                         'total_paid': total_paid,
                         'pending_amount': balance,
                         'installment_data': installment_data
                     })
             
-            # Sort highest to lowest
             fee_detail_list.sort(key=lambda x: x['pending_amount'], reverse=True)
-
             return Response(fee_detail_list)
+
         except Exception as e:
             import traceback
+            print(f"Error in pending_fees: {str(e)}")
             print(traceback.format_exc())
-            return Response({'error': str(e), 'traceback': traceback.format_exc()}, status=500)
+            return Response({'error': str(e)}, status=500)
 
     @action(detail=True, methods=['get'])
     def ledger(self, request, pk=None):

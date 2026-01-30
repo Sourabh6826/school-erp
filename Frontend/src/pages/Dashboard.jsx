@@ -10,6 +10,8 @@ function Dashboard() {
         total_pending: 0
     });
     const [pendingFees, setPendingFees] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     // Get first day of current month
     const getFirstDayOfMonth = () => {
@@ -31,53 +33,53 @@ function Dashboard() {
     const classOptions = ['Nursery', 'KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
 
     useEffect(() => {
-        fetchGlobalSettings();
-        fetchStats();
-        fetchPendingFees();
+        const loadAll = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                await Promise.all([
+                    fetchGlobalSettings(),
+                    fetchStats(),
+                    fetchPendingFees()
+                ]);
+            } catch (err) {
+                console.error("Dashboard Load Error:", err);
+                setError("Failed to load dashboard data. Please try again.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadAll();
     }, [filters]);
 
     const fetchGlobalSettings = async () => {
-        try {
-            const response = await api.get(`fees/settings/${filters.session}/`);
-            setGlobalSettings(response.data);
-            // If current installment filter is higher than new count, reset it
-            if (parseInt(filters.installment) > response.data.installment_count) {
-                setFilters(prev => ({ ...prev, installment: '' }));
-            }
-        } catch (error) {
-            console.log("No settings found for session, using defaults");
-            setGlobalSettings({ installment_count: 4 });
+        const response = await api.get(`fees/settings/${filters.session}/`);
+        setGlobalSettings(response.data);
+        if (parseInt(filters.installment) > response.data.installment_count) {
+            setFilters(prev => ({ ...prev, installment: '' }));
         }
     };
 
     const fetchStats = async () => {
-        try {
-            const queryParams = new URLSearchParams({
-                session: filters.session,
-                student_class: filters.student_class,
-                installment: filters.installment,
-                date_from: filters.date_from,
-                date_to: filters.date_to
-            }).toString();
-            const response = await api.get(`students/stats/?${queryParams}`);
-            setStats(response.data);
-        } catch (error) {
-            console.error("Error fetching stats:", error);
-        }
+        const queryParams = new URLSearchParams({
+            session: filters.session,
+            student_class: filters.student_class,
+            installment: filters.installment,
+            date_from: filters.date_from,
+            date_to: filters.date_to
+        }).toString();
+        const response = await api.get(`students/stats/?${queryParams}`);
+        setStats(response.data);
     };
 
     const fetchPendingFees = async () => {
-        try {
-            const queryParams = new URLSearchParams({
-                session: filters.session,
-                student_class: filters.student_class,
-                show_all: filters.show_all
-            }).toString();
-            const response = await api.get(`students/pending_fees/?${queryParams}`);
-            setPendingFees(response.data);
-        } catch (error) {
-            console.error("Error fetching pending fees:", error);
-        }
+        const queryParams = new URLSearchParams({
+            session: filters.session,
+            student_class: filters.student_class,
+            show_all: filters.show_all
+        }).toString();
+        const response = await api.get(`students/pending_fees/?${queryParams}`);
+        setPendingFees(response.data);
     };
 
     // Sorting function
@@ -161,23 +163,43 @@ function Dashboard() {
                             ))}
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">From Date</label>
-                        <input
-                            type="date"
-                            className="bg-transparent border-none focus:ring-0 text-sm font-semibold"
-                            value={filters.date_from}
-                            onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">To Date</label>
-                        <input
-                            type="date"
-                            className="bg-transparent border-none focus:ring-0 text-sm font-semibold"
-                            value={filters.date_to}
-                            onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
-                        />
+                    <div className="flex flex-col">
+                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Date Range</label>
+                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 self-start">
+                            <input
+                                type="date"
+                                className="bg-transparent border-none focus:ring-0 text-xs font-bold text-gray-700 p-0 w-24"
+                                value={filters.date_from}
+                                onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
+                            />
+                            <span className="text-gray-300 font-bold text-xs opacity-50">to</span>
+                            <input
+                                type="date"
+                                className="bg-transparent border-none focus:ring-0 text-xs font-bold text-gray-700 p-0 w-24"
+                                value={filters.date_to}
+                                onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
+                            />
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                            <button
+                                onClick={() => setFilters({ ...filters, date_from: getFirstDayOfMonth(), date_to: new Date().toISOString().split('T')[0] })}
+                                className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition"
+                            >
+                                This Month
+                            </button>
+                            <button
+                                onClick={() => setFilters({ ...filters, date_from: `${filters.session.split('-')[0]}-04-01`, date_to: `${parseInt(filters.session.split('-')[0]) + 1}-03-31` })}
+                                className="text-[9px] font-black text-purple-600 bg-purple-50 px-2 py-1 rounded hover:bg-purple-100 transition"
+                            >
+                                Full Session
+                            </button>
+                            <button
+                                onClick={() => setFilters({ ...filters, date_from: new Date().toISOString().split('T')[0], date_to: new Date().toISOString().split('T')[0] })}
+                                className="text-[9px] font-black text-green-600 bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition"
+                            >
+                                Today
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -243,8 +265,29 @@ function Dashboard() {
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-100">
+                <div className="overflow-x-auto relative">
+                    {loading && (
+                        <div className="absolute inset-0 bg-white bg-opacity-60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center py-20">
+                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p className="text-sm font-black text-blue-600 uppercase tracking-widest animate-pulse">Fetching Data...</p>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-100 p-6 rounded-2xl mb-8 flex flex-col items-center text-center">
+                            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-xl mb-4">⚠️</div>
+                            <h4 className="font-bold text-red-800">Connection Issue</h4>
+                            <p className="text-sm text-red-600 mt-1">{error}</p>
+                            <button
+                                onClick={() => setFilters({ ...filters })}
+                                className="mt-4 bg-red-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 hover:bg-red-700 transition"
+                            >
+                                Retry Connection
+                            </button>
+                        </div>
+                    )}
+
+                    <table className={`min-w-full divide-y divide-gray-100 transition-opacity duration-300 ${loading ? 'opacity-20' : 'opacity-100'}`}>
                         <thead>
                             <tr className="bg-gray-50 bg-opacity-50">
                                 <th className="px-6 py-5 text-left text-xs font-black text-gray-600 uppercase tracking-widest">Student</th>
@@ -269,9 +312,15 @@ function Dashboard() {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-50">
-                            {getSortedFees().length === 0 ? (
+                            {(!loading && getSortedFees().length === 0) ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400 font-medium italic">No students found for this selection.</td>
+                                    <td colSpan="10" className="px-6 py-12 text-center text-gray-400 font-medium italic">
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-4xl mb-4 opacity-20">📁</span>
+                                            <p>No students found matching these filters.</p>
+                                            <p className="text-[10px] mt-1 uppercase font-black tracking-widest opacity-50">Try selecting a different class or toggling "Show All"</p>
+                                        </div>
+                                    </td>
                                 </tr>
                             ) : (
                                 getSortedFees().map((s) => (
