@@ -9,7 +9,12 @@ export const AuthProvider = ({ children }) => {
 
     // Check authentication status on mount
     useEffect(() => {
-        checkAuth();
+        const token = localStorage.getItem('token');
+        if (token) {
+            checkAuth();
+        } else {
+            setLoading(false);
+        }
     }, []);
 
     const checkAuth = async () => {
@@ -18,10 +23,12 @@ export const AuthProvider = ({ children }) => {
             if (response.data.authenticated) {
                 setUser(response.data.user);
             } else {
+                localStorage.removeItem('token');
                 setUser(null);
             }
         } catch (error) {
             console.error('Auth check failed:', error);
+            localStorage.removeItem('token');
             setUser(null);
         } finally {
             setLoading(false);
@@ -31,6 +38,7 @@ export const AuthProvider = ({ children }) => {
     const login = async (username, password) => {
         const response = await api.post('/auth/login/', { username, password });
         if (response.data.success) {
+            localStorage.setItem('token', response.data.token);
             setUser(response.data.user);
             return true;
         }
@@ -43,6 +51,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             console.error('Logout failed:', error);
         } finally {
+            localStorage.removeItem('token');
             setUser(null);
         }
     };

@@ -5,7 +5,21 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    withCredentials: true, // Enable sending cookies for session authentication
+    withCredentials: true, // Keep for potential cross-origin needs, but token is primary now
 });
+
+// Add a request interceptor to add the token to the header
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Token ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
 
 export default api;

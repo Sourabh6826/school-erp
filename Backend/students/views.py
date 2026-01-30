@@ -433,13 +433,12 @@ from django.contrib.auth import authenticate, login, logout
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import AllowAny
-from school_erp.authentication import CsrfExemptSessionAuthentication
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.authtoken.models import Token
 import json
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@authentication_classes([CsrfExemptSessionAuthentication])
 def login_view(request):
     try:
         data = json.loads(request.body)
@@ -452,9 +451,10 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
-            login(request, user)
+            token, created = Token.objects.get_or_create(user=user)
             return JsonResponse({
                 'success': True,
+                'token': token.key,
                 'user': {
                     'id': user.id,
                     'username': user.username,
@@ -468,25 +468,25 @@ def login_view(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 @api_view(['POST'])
-@authentication_classes([CsrfExemptSessionAuthentication])
+@permission_classes([IsAuthenticated])
 def logout_view(request):
-    logout(request)
+    try:
+        # Delete the token to log out
+        request.user.auth_token.delete()
+    except Exception:
+        pass
     return JsonResponse({'success': True})
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
-@authentication_classes([CsrfExemptSessionAuthentication])
+@permission_classes([IsAuthenticated])
 def check_auth(request):
-    if request.user.is_authenticated:
-        return JsonResponse({
-            'authenticated': True,
-            'user': {
-                'id': request.user.id,
-                'username': request.user.username,
-                'email': request.user.email,
-                'is_staff': request.user.is_staff,
-            }
-        })
-    else:
-        return JsonResponse({'authenticated': False})
+    return JsonResponse({
+        'authenticated': True,
+        'user': {
+            'id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email,
+            'is_staff': request.user.is_staff,
+        }
+    })
 
