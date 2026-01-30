@@ -30,8 +30,17 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
+# Handle RENDER_EXTERNAL_HOSTNAME carefully to avoid scheme in ALLOWED_HOSTS
+render_hostname = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if render_hostname:
+    # Strip protocol if present
+    if '://' in render_hostname:
+        render_hostname = render_hostname.split('://')[1]
+    # Strip trailing slash if present
+    render_hostname = render_hostname.rstrip('/')
+
 ALLOWED_HOSTS = [
-    os.getenv('RENDER_EXTERNAL_HOSTNAME', '*'), # '*' is a quick fix, but specific is better
+    render_hostname if render_hostname else '*',
     'localhost',
     '127.0.0.1'
 ]
