@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api';
+import { useAuth } from '../context/AuthContext';
 
 function Login() {
     const [username, setUsername] = useState('');
@@ -8,6 +8,7 @@ function Login() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const { login } = useAuth();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -15,15 +16,11 @@ function Login() {
         setLoading(true);
 
         try {
-            const response = await api.post('/auth/login/', {
-                username,
-                password,
-            });
-
-            if (response.data.success) {
-                // Store user info in localStorage
-                localStorage.setItem('user', JSON.stringify(response.data.user));
+            const success = await login(username, password);
+            if (success) {
                 navigate('/');
+            } else {
+                setError('Invalid credentials. Please try again.');
             }
         } catch (err) {
             setError(err.response?.data?.error || 'Login failed. Please try again.');
