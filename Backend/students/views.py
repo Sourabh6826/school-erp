@@ -288,6 +288,13 @@ class StudentViewSet(viewsets.ModelViewSet):
             entry['balance'] = running_sum
 
         return Response(entries)
+    
+    @action(detail=True, methods=['get'])
+    def print_ledger(self, request, pk=None):
+        """
+        Returns formatted ledger data for printing (same as ledger endpoint)
+        """
+        return self.ledger(request, pk)
 
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser])
     def bulk_import(self, request):

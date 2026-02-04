@@ -106,6 +106,7 @@ class Receipt(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     remarks = models.TextField(blank=True)
+    payment_mode = models.CharField(max_length=10, choices=[('CASH', 'Cash'), ('ONLINE', 'Online')], default='CASH')
     
     def __str__(self):
         return f"Receipt #{self.receipt_no} - {self.student.name}"

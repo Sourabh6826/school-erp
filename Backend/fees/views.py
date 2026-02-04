@@ -103,6 +103,7 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         student_id = data.get('student')
         payment_items = data.get('items', [])
         remarks = data.get('remarks', '')
+        payment_mode = data.get('payment_mode', 'CASH')
         
         # Get next receipt number
         max_no = Receipt.objects.aggregate(Max('receipt_no'))['receipt_no__max'] or 0
@@ -114,7 +115,8 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             receipt_no=receipt_no,
             student_id=student_id,
             total_amount=total_amount,
-            remarks=remarks
+            remarks=remarks,
+            payment_mode=payment_mode
         )
         
         for item in payment_items:
@@ -159,6 +161,36 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         instance.save()
         
         return Response(ReceiptSerializer(instance).data)
+    
+    @action(detail=True, methods=['get'])
+    def print_receipt(self, request, pk=None):
+        """
+        Returns formatted receipt data for printing
+        """
+        receipt = self.get_object()
+        
+        # Build detailed receipt data
+        receipt_data = {
+            'receipt_no': receipt.receipt_no,
+            'payment_date': receipt.payment_date.strftime('%d-%b-%Y'),
+            'student_name': receipt.student.name,
+            'student_id': receipt.student.student_id,
+            'student_class': receipt.student.student_class,
+            'payment_mode': receipt.get_payment_mode_display(),
+            'remarks': receipt.remarks,
+            'total_amount': float(receipt.total_amount),
+            'items': []
+        }
+        
+        # Add transaction items
+        for transaction in receipt.transactions.all():
+            receipt_data['items'].append({
+                'fee_head': transaction.fee_head.name if transaction.fee_head else 'General',
+                'installment_number': transaction.installment_number,
+                'amount_paid': float(transaction.amount_paid)
+            })
+        
+        return Response(receipt_data)
 
 class GlobalFeeSettingViewSet(viewsets.ModelViewSet):
     queryset = GlobalFeeSetting.objects.all()
@@ -254,7 +286,9 @@ class BankReconciliationViewSet(viewsets.ModelViewSet):
             
             # Match by total_amount in FeeTransaction
             # Note: FeeTransaction.amount_paid is Decimal
+            # Only match if the linked Receipt is marked as 'ONLINE'
             candidates = FeeTransaction.objects.filter(
+                receipt__payment_mode='ONLINE',
                 amount_paid=entry.amount,
                 payment_date__range=[start_date, end_date],
                 bank_matches__isnull=True

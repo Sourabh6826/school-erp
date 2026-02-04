@@ -61,6 +61,85 @@ function Ledger() {
         document.body.removeChild(link);
     };
 
+    const handlePrintLedger = () => {
+        if (!selectedStudent || ledgerData.length === 0) return;
+
+        // Create print window
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Ledger - ${selectedStudent.name}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 40px; max-width: 1000px; margin: 0 auto; }
+                    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
+                    .header h1 { margin: 0; font-size: 28px; }
+                    .header p { margin: 5px 0; color: #666; }
+                    .student-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+                    .student-info p { margin: 5px 0; }
+                    .student-info strong { color: #333; }
+                    table { width: 100%; border-collapse: collapse; margin: 30px 0; }
+                    th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: bold; font-size: 11px; text-transform: uppercase; }
+                    td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+                    .debit { color: #d32f2f; font-weight: bold; }
+                    .credit { color: #388e3c; font-weight: bold; }
+                    .balance { font-weight: bold; }
+                    .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; font-size: 12px; }
+                    @media print { body { padding: 20px; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>Student Ledger</h1>
+                    <p>School ERP System</p>
+                </div>
+                
+                <div class="student-info">
+                    <p><strong>Student Name:</strong> ${selectedStudent.name}</p>
+                    <p><strong>Student ID:</strong> ${selectedStudent.student_id}</p>
+                    <p><strong>Class:</strong> ${selectedStudent.student_class}</p>
+                    <p><strong>Generated On:</strong> ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                </div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th style="text-align: center;">Inst.</th>
+                            <th style="text-align: right;">Debit (Fee)</th>
+                            <th style="text-align: right;">Credit (Paid)</th>
+                            <th style="text-align: right;">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${ledgerData.map(e => `
+                            <tr>
+                                <td>${e.date}</td>
+                                <td>${e.description}</td>
+                                <td style="text-align: center;">${e.installment || '-'}</td>
+                                <td style="text-align: right;" class="debit">${e.debit > 0 ? `₹${e.debit.toLocaleString('en-IN')}` : '-'}</td>
+                                <td style="text-align: right;" class="credit">${e.credit > 0 ? `₹${e.credit.toLocaleString('en-IN')}` : '-'}</td>
+                                <td style="text-align: right;" class="balance">₹${e.balance.toLocaleString('en-IN')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                
+                <div class="footer">
+                    <p>This is a computer-generated ledger report</p>
+                </div>
+                
+                <script>
+                    window.onload = function() { window.print(); }
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
     return (
         <div className="p-4">
             <h2 className="text-3xl font-semibold mb-6">Student Ledger</h2>
@@ -105,6 +184,13 @@ function Ledger() {
                             </p>
                         </div>
                         <div className="flex gap-3">
+                            <button
+                                onClick={handlePrintLedger}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2"
+                                title="Print Ledger"
+                            >
+                                🖨 Print Ledger
+                            </button>
                             <button
                                 onClick={exportToExcel}
                                 className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700"
