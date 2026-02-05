@@ -552,7 +552,7 @@ function Fees() {
             <div className="grid grid-cols-3 items-center mb-6">
                 <div>
                     <h2 className="text-3xl font-semibold">Fee Management</h2>
-                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Configure Fees & Manage Payments</p>
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Configure Fees & Manage Receipts</p>
                 </div>
 
                 <div className="flex justify-center">
@@ -567,7 +567,7 @@ function Fees() {
                             onClick={() => setActiveTab('transactions')}
                             className={`px-6 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeTab === 'transactions' ? 'bg-black text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
                         >
-                            <span>💸 Payments</span>
+                            <span>💸 Receipts</span>
                         </button>
                     </div>
                 </div>
@@ -1196,10 +1196,10 @@ function Fees() {
                                                 <button
                                                     onClick={handlePaymentSubmit}
                                                     disabled={isSubmitting || (!payAll && selectedInsts.length === 0)}
-                                                    className="flex-[1.5] h-full bg-green-600 text-white px-8 py-6 rounded-3xl font-black text-lg uppercase tracking-widest hover:bg-green-700 shadow-2xl shadow-green-200 transition-all disabled:opacity-30 flex items-center justify-center group"
+                                                    className="flex-1 h-full bg-green-600 text-white px-4 py-4 rounded-3xl font-black text-base uppercase tracking-widest hover:bg-green-700 shadow-2xl shadow-green-200 transition-all disabled:opacity-30 flex items-center justify-center group"
                                                 >
-                                                    <span>{isSubmitting ? 'Confirming...' : 'Record Receipt'}</span>
-                                                    <svg className="w-6 h-6 ml-3 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7-7 7"></path></svg>
+                                                    <span>{isSubmitting ? 'Confirming' : 'Record Receipt'}</span>
+                                                    <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7-7 7"></path></svg>
                                                 </button>
                                             </div>
                                         </div>
