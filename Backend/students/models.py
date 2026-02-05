@@ -26,6 +26,10 @@ class Student(models.Model):
     status = models.CharField(max_length=10, choices=[('Active', 'Active'), ('TC', 'TC')], default='Active')
     transport_fee_head = models.ForeignKey('fees.FeeHead', on_delete=models.SET_NULL, null=True, blank=True, related_name='transport_students')
     
+    # One-time opening balances (set during import/student creation)
+    previous_pending = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Opening pending balance")
+    previous_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Opening paid balance")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
