@@ -132,13 +132,46 @@ function Reconciliation() {
                                 </td>
                                 <td className="px-6 py-4 text-sm font-bold text-gray-800">₹{entry.amount}</td>
                                 <td className="px-6 py-4">
-                                    {entry.matched_transaction ? (
-                                        <div className="text-xs">
-                                            <p className="font-bold text-blue-600">{entry.matched_transaction_details?.student_name}</p>
-                                            <p className="text-gray-400">Tx Date: {entry.matched_transaction_details?.date}</p>
+                                    {entry.is_reconciled ? (
+                                        <div className="flex items-center justify-between gap-2">
+                                            {entry.matched_transaction ? (
+                                                <div className="text-xs">
+                                                    <p className="font-bold text-blue-600">{entry.matched_transaction_details?.student_name}</p>
+                                                    <p className="text-gray-400">Tx Date: {entry.matched_transaction_details?.date}</p>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-gray-400 font-bold uppercase">Manually Verified</span>
+                                            )}
+                                            <button
+                                                onClick={async () => {
+                                                    if (!window.confirm('Are you sure you want to unreconcile this entry?')) return;
+                                                    try {
+                                                        await api.post(`/fees/reconciliation/${entry.id}/unreconcile/`);
+                                                        fetchEntries();
+                                                    } catch (e) { alert('Failed to unreconcile'); }
+                                                }}
+                                                className="text-red-500 hover:text-red-700 text-xs font-bold underline px-2"
+                                            >
+                                                Unreconcile
+                                            </button>
                                         </div>
                                     ) : (
-                                        <span className="text-gray-300 italic text-xs">No match found</span>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-gray-300 italic text-xs">No match found</span>
+                                            <button
+                                                onClick={async () => {
+                                                    // Manual Reconcile (Mark verified)
+                                                    if (!window.confirm('Mark this entry as reconciled manually?')) return;
+                                                    try {
+                                                        await api.post(`/fees/reconciliation/${entry.id}/reconcile_manual/`, {});
+                                                        fetchEntries();
+                                                    } catch (e) { alert('Failed to mark as reconciled'); }
+                                                }}
+                                                className="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide transition"
+                                            >
+                                                Mark Reconciled
+                                            </button>
+                                        </div>
                                     )}
                                 </td>
                             </tr>

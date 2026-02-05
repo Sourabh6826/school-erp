@@ -278,8 +278,15 @@ class StudentViewSet(viewsets.ModelViewSet):
                 'credit': float(t.amount_paid),
             })
         
-        # Sort by date
-        entries.sort(key=lambda x: x['date'])
+        # Sort by date then installment
+        def sort_key(x):
+            try:
+                inst = int(x['installment'])
+            except:
+                inst = 0 # 'All' or other strings come first
+            return (x['date'], inst)
+            
+        entries.sort(key=sort_key)
         
         # Calculate running sum
         running_sum = 0
@@ -320,7 +327,10 @@ class StudentViewSet(viewsets.ModelViewSet):
                     s_class = str(row[2].value).strip()
                     contact = str(row[3].value).strip() if row[3].value else ""
                     has_trans_str = str(row[4].value).strip().lower() if row[4].value else ""
+
                     trans_head_name = str(row[5].value).strip() if row[5].value else None
+                    prev_pending = float(row[6].value) if (len(row) > 6 and row[6].value) else 0.0
+                    prev_paid = float(row[7].value) if (len(row) > 7 and row[7].value) else 0.0
                     
                     has_transport = has_trans_str in ['yes', 'true', '1', 'y']
                     
@@ -335,7 +345,9 @@ class StudentViewSet(viewsets.ModelViewSet):
                             'student_class': s_class,
                             'contact_number': contact,
                             'has_transport': has_transport,
-                            'transport_fee_head': trans_head
+                            'transport_fee_head': trans_head,
+                            'previous_pending': prev_pending,
+                            'previous_paid': prev_paid
                         }
                     )
                     

@@ -104,6 +104,7 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         payment_items = data.get('items', [])
         remarks = data.get('remarks', '')
         payment_mode = data.get('payment_mode', 'CASH')
+        payment_date = data.get('payment_date', None)  # Accept custom payment date
         
         # Get next receipt number
         max_no = Receipt.objects.aggregate(Max('receipt_no'))['receipt_no__max'] or 0
@@ -111,13 +112,22 @@ class ReceiptViewSet(viewsets.ModelViewSet):
         
         total_amount = sum(float(item['amount_paid']) for item in payment_items)
         
-        receipt = Receipt.objects.create(
-            receipt_no=receipt_no,
-            student_id=student_id,
-            total_amount=total_amount,
-            remarks=remarks,
-            payment_mode=payment_mode
-        )
+        # Create receipt with custom date if provided
+        receipt_data = {
+            'receipt_no': receipt_no,
+            'student_id': student_id,
+            'total_amount': total_amount,
+            'remarks': remarks,
+            'payment_mode': payment_mode
+        }
+        
+        if payment_date:
+            # If custom date provided, create receipt and update payment_date
+            receipt = Receipt.objects.create(**receipt_data)
+            receipt.payment_date = payment_date
+            receipt.save()
+        else:
+            receipt = Receipt.objects.create(**receipt_data)
         
         for item in payment_items:
             FeeTransaction.objects.create(
@@ -182,13 +192,21 @@ class ReceiptViewSet(viewsets.ModelViewSet):
             'items': []
         }
         
-        # Add transaction items
+        # Add transaction items with proper fee head display
         for transaction in receipt.transactions.all():
+            fee_head_name = transaction.fee_head.name if transaction.fee_head else 'General'
+            # Show "Transportation Fees" for transport fee heads
+            if transaction.fee_head and transaction.fee_head.is_transport_fee:
+                fee_head_name = "Transportation Fees"
+            
             receipt_data['items'].append({
-                'fee_head': transaction.fee_head.name if transaction.fee_head else 'General',
+                'fee_head': fee_head_name,
                 'installment_number': transaction.installment_number,
                 'amount_paid': float(transaction.amount_paid)
             })
+            
+        # Sort items: Installment 1, 2, ... (or All/0 first)
+        receipt_data['items'].sort(key=lambda x: int(x['installment_number']) if str(x['installment_number']).isdigit() else 0)
         
         return Response(receipt_data)
 
@@ -317,11 +335,31 @@ class BankReconciliationViewSet(viewsets.ModelViewSet):
         entry = self.get_object()
         transaction_id = request.data.get('transaction_id')
         
-        try:
-            fee_tx = FeeTransaction.objects.get(id=transaction_id)
-            entry.matched_transaction = fee_tx
-            entry.is_reconciled = True
-            entry.save()
-            return Response({'message': 'Manual reconciliation successful'})
-        except:
-            return Response({'error': 'Transaction not found or invalid'}, status=status.HTTP_404_NOT_FOUND)
+        if transaction_id:
+            try:
+                fee_tx = FeeTransaction.objects.get(id=transaction_id)
+                entry.matched_transaction = fee_tx
+            except FeeTransaction.DoesNotExist:
+                return Response({'error': 'Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        entry.is_reconciled = True
+        entry.save()
+        match_msg = "linked to transaction" if transaction_id else "without linkage"
+        return Response({'message': f'Manual reconciliation successful ({match_msg})'})
+    
+    @action(detail=True, methods=['post'])
+    def unreconcile(self, request, pk=None):
+        """
+        Remove reconciliation from a bank statement entry
+        """
+        entry = self.get_object()
+        
+        if not entry.is_reconciled:
+            return Response({'error': 'Entry is not reconciled'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        entry.matched_transaction = None
+        entry.is_reconciled = False
+        entry.save()
+        
+        return Response({'message': 'Successfully unreconciled entry'})
+
