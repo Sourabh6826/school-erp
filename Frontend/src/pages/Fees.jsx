@@ -1205,193 +1205,194 @@ function Fees() {
                                         </div>
                                     </div>
                                 </div>
-                        )}
                             </div>
+                        )}
+                    </div>
                 </div>
             )}
 
-                    {/* Payment History Section */}
-                    {/* Payment History Moved to Tab: transactions */}
+            {/* Payment History Section */}
+            {/* Payment History Moved to Tab: transactions */}
 
-                    {/* Edit Receipt Modal */}
-                    {showEditModal && editingReceipt && (
-                        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 backdrop-blur-sm">
-                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-[600px] max-h-[90vh] overflow-y-auto">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-2xl font-bold text-gray-800">Edit Receipt #{editingReceipt.receipt_no}</h3>
-                                    <button onClick={() => { setShowEditModal(false); setEditingReceipt(null); }} className="text-gray-400 hover:text-gray-600">
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                    </button>
-                                </div>
-                                <form onSubmit={handleEditSubmit} className="space-y-6">
-                                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                                        <p className="text-sm font-bold text-gray-700">{editingReceipt.student_name}</p>
-                                        <p className="text-xs text-gray-500">Date: {new Date(editingReceipt.payment_date).toLocaleDateString()}</p>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        {editingReceipt.transactions.map((t, idx) => (
-                                            <div key={t.id || idx} className="flex justify-between items-center p-3 border border-gray-100 rounded-xl">
-                                                <div>
-                                                    <p className="text-sm font-bold text-gray-800">{t.fee_head_name}</p>
-                                                    <p className="text-[10px] uppercase font-black text-gray-400">Installment {t.installment_number}</p>
-                                                </div>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-2.5 text-gray-400 text-sm font-bold">₹</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        className="w-32 border border-gray-200 rounded-xl py-2 pl-7 pr-3 text-right text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        value={t.amount_paid}
-                                                        onChange={(e) => {
-                                                            const updated = { ...editingReceipt };
-                                                            updated.transactions[idx].amount_paid = e.target.value;
-                                                            setEditingReceipt(updated);
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Remarks</label>
-                                        <textarea
-                                            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={editingReceipt.remarks}
-                                            onChange={(e) => setEditingReceipt({ ...editingReceipt, remarks: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <div className="flex gap-4 pt-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => { setShowEditModal(false); setEditingReceipt(null); }}
-                                            className="flex-1 bg-gray-100 text-gray-600 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-xl transition"
-                                        >
-                                            Save Changes
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
+            {/* Edit Receipt Modal */}
+            {showEditModal && editingReceipt && (
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 backdrop-blur-sm">
+                    <div className="bg-white p-8 rounded-3xl shadow-2xl w-[600px] max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-bold text-gray-800">Edit Receipt #{editingReceipt.receipt_no}</h3>
+                            <button onClick={() => { setShowEditModal(false); setEditingReceipt(null); }} className="text-gray-400 hover:text-gray-600">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
                         </div>
-                    )}
+                        <form onSubmit={handleEditSubmit} className="space-y-6">
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <p className="text-sm font-bold text-gray-700">{editingReceipt.student_name}</p>
+                                <p className="text-xs text-gray-500">Date: {new Date(editingReceipt.payment_date).toLocaleDateString()}</p>
+                            </div>
 
-                    {/* Config Modal */}
-                    {showModal && (
-                        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 backdrop-blur-sm">
-                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-[700px] max-h-[90vh] overflow-y-auto">
-                                <div className="flex justify-between items-center mb-6 border-b pb-4">
-                                    <h3 className="text-2xl font-bold text-gray-800">{editingHead ? 'Edit Fee Head' : 'Configure New Fee Head'}</h3>
-                                    <button onClick={() => { setShowModal(false); setEditingHead(null); resetHeadForm(); }} className="text-gray-400 hover:text-gray-600">
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                    </button>
-                                </div>
-                                <form onSubmit={handleAddHead} className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-4">
+                            <div className="space-y-4">
+                                {editingReceipt.transactions.map((t, idx) => (
+                                    <div key={t.id || idx} className="flex justify-between items-center p-3 border border-gray-100 rounded-xl">
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Name</label>
+                                            <p className="text-sm font-bold text-gray-800">{t.fee_head_name}</p>
+                                            <p className="text-[10px] uppercase font-black text-gray-400">Installment {t.installment_number}</p>
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-2.5 text-gray-400 text-sm font-bold">₹</span>
                                             <input
-                                                type="text"
-                                                placeholder="Tuition Fee, Transport etc"
-                                                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                                                value={newHead.name}
-                                                onChange={(e) => setNewHead({ ...newHead, name: e.target.value })}
-                                                required
-                                            />
-                                        </div>
-                                        {/* Session and Frequency are now global and preset */}
-
-                                        {newHead.frequency === 'INSTALLMENTS' && (
-                                            <div className="col-span-2 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">!</div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-blue-700">Inherited Global Settings</p>
-                                                    <p className="text-[10px] text-blue-500 uppercase font-black">This fee will have {globalSettings.installment_count} installments as per global config.</p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                                            <label className="flex items-center space-x-3 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 pointer-events-auto shadow-sm"
-                                                    checked={newHead.is_transport_fee}
-                                                    onChange={(e) => setNewHead({ ...newHead, is_transport_fee: e.target.checked })}
-                                                />
-                                                <div>
-                                                    <p className="text-sm font-bold text-gray-700">Is this a Transport Fee?</p>
-                                                    <p className="text-[10px] text-gray-500 uppercase font-medium">Will be shown in student transport settings</p>
-                                                </div>
-                                            </label>
-                                        </div>
-
-                                        {/* Due Day and Months are now global */}
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Description</label>
-                                            <textarea
-                                                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm min-h-[60px]"
-                                                value={newHead.description}
-                                                onChange={(e) => setNewHead({ ...newHead, description: e.target.value })}
+                                                type="number"
+                                                step="0.01"
+                                                className="w-32 border border-gray-200 rounded-xl py-2 pl-7 pr-3 text-right text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={t.amount_paid}
+                                                onChange={(e) => {
+                                                    const updated = { ...editingReceipt };
+                                                    updated.transactions[idx].amount_paid = e.target.value;
+                                                    setEditingReceipt(updated);
+                                                }}
                                             />
                                         </div>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Set Amount per Class</label>
-                                        <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white max-h-[380px] overflow-y-auto">
-                                            <table className="w-full">
-                                                <tbody className="divide-y divide-gray-50">
-                                                    {['Nursery', 'KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].map((className) => (
-                                                        <tr key={className} className="hover:bg-gray-50">
-                                                            <td className="py-2 px-4 text-xs font-bold text-gray-600 uppercase">{className}</td>
-                                                            <td className="py-2 px-4 text-right">
-                                                                <div className="relative inline-block">
-                                                                    <span className="absolute left-2 top-1.5 text-[10px] font-bold text-gray-400">₹</span>
-                                                                    <input
-                                                                        type="number"
-                                                                        className="w-24 border border-gray-100 rounded-lg py-1.5 pl-5 pr-2 text-right text-xs font-black focus:border-blue-500 outline-none"
-                                                                        value={newHead.amounts.find(a => a.class_name === className)?.amount || ''}
-                                                                        onChange={(e) => handleAmountChange(className, e.target.value)}
-                                                                        placeholder="0.00"
-                                                                    />
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div className="flex gap-3 pt-6">
-                                            <button
-                                                type="button"
-                                                onClick={() => { setShowModal(false); setEditingHead(null); resetHeadForm(); }}
-                                                className="flex-1 bg-gray-100 text-gray-600 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-xl transition"
-                                            >
-                                                Save Plan
-                                            </button>
-                                        </div>
-                                    </div>
-                                </form>
+                                ))}
                             </div>
-                        </div>
-                    )}
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Remarks</label>
+                                <textarea
+                                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={editingReceipt.remarks}
+                                    onChange={(e) => setEditingReceipt({ ...editingReceipt, remarks: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="flex gap-4 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowEditModal(false); setEditingReceipt(null); }}
+                                    className="flex-1 bg-gray-100 text-gray-600 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-xl transition"
+                                >
+                                    Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            );
+            )}
+
+            {/* Config Modal */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 backdrop-blur-sm">
+                    <div className="bg-white p-8 rounded-3xl shadow-2xl w-[700px] max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6 border-b pb-4">
+                            <h3 className="text-2xl font-bold text-gray-800">{editingHead ? 'Edit Fee Head' : 'Configure New Fee Head'}</h3>
+                            <button onClick={() => { setShowModal(false); setEditingHead(null); resetHeadForm(); }} className="text-gray-400 hover:text-gray-600">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddHead} className="grid grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Tuition Fee, Transport etc"
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                                        value={newHead.name}
+                                        onChange={(e) => setNewHead({ ...newHead, name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                {/* Session and Frequency are now global and preset */}
+
+                                {newHead.frequency === 'INSTALLMENTS' && (
+                                    <div className="col-span-2 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">!</div>
+                                        <div>
+                                            <p className="text-sm font-bold text-blue-700">Inherited Global Settings</p>
+                                            <p className="text-[10px] text-blue-500 uppercase font-black">This fee will have {globalSettings.installment_count} installments as per global config.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                                    <label className="flex items-center space-x-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 pointer-events-auto shadow-sm"
+                                            checked={newHead.is_transport_fee}
+                                            onChange={(e) => setNewHead({ ...newHead, is_transport_fee: e.target.checked })}
+                                        />
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-700">Is this a Transport Fee?</p>
+                                            <p className="text-[10px] text-gray-500 uppercase font-medium">Will be shown in student transport settings</p>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {/* Due Day and Months are now global */}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Description</label>
+                                    <textarea
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm min-h-[60px]"
+                                        value={newHead.description}
+                                        onChange={(e) => setNewHead({ ...newHead, description: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Set Amount per Class</label>
+                                <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white max-h-[380px] overflow-y-auto">
+                                    <table className="w-full">
+                                        <tbody className="divide-y divide-gray-50">
+                                            {['Nursery', 'KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].map((className) => (
+                                                <tr key={className} className="hover:bg-gray-50">
+                                                    <td className="py-2 px-4 text-xs font-bold text-gray-600 uppercase">{className}</td>
+                                                    <td className="py-2 px-4 text-right">
+                                                        <div className="relative inline-block">
+                                                            <span className="absolute left-2 top-1.5 text-[10px] font-bold text-gray-400">₹</span>
+                                                            <input
+                                                                type="number"
+                                                                className="w-24 border border-gray-100 rounded-lg py-1.5 pl-5 pr-2 text-right text-xs font-black focus:border-blue-500 outline-none"
+                                                                value={newHead.amounts.find(a => a.class_name === className)?.amount || ''}
+                                                                onChange={(e) => handleAmountChange(className, e.target.value)}
+                                                                placeholder="0.00"
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="flex gap-3 pt-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowModal(false); setEditingHead(null); resetHeadForm(); }}
+                                        className="flex-1 bg-gray-100 text-gray-600 px-4 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-xl transition"
+                                    >
+                                        Save Plan
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 
 }
 
-            export default Fees;
+export default Fees;
