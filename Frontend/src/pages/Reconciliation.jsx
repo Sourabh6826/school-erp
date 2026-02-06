@@ -9,6 +9,7 @@ function Reconciliation() {
     const [matching, setMatching] = useState(false);
     const [error, setError] = useState(null);
     const [file, setFile] = useState(null);
+    const [erpTransactions, setErpTransactions] = useState([]);
 
     const [filter, setFilter] = useState('pending'); // 'pending' | 'matched' | 'all'
 
@@ -20,7 +21,10 @@ function Reconciliation() {
         setLoading(true);
         try {
             let url = '/fees/reconciliation/';
-            if (currentFilter === 'pending') url += '?is_reconciled=false';
+            if (currentFilter === 'pending') {
+                url += '?is_reconciled=false';
+                fetchERPTransactions();
+            }
             else if (currentFilter === 'matched') url += '?is_reconciled=true';
 
             const response = await api.get(url);
@@ -31,6 +35,15 @@ function Reconciliation() {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchERPTransactions = async () => {
+        try {
+            const response = await api.get('/fees/reconciliation/pending_erp_transactions/');
+            setErpTransactions(response.data);
+        } catch (err) {
+            console.error("Failed to fetch ERP transactions", err);
         }
     };
 
@@ -67,6 +80,22 @@ function Reconciliation() {
             fetchEntries();
         } catch (err) {
             alert('Failed to mark as reconciled: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleReconcileERP = async (tx) => {
+        const date = window.prompt('Enter reconciliation date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+        if (date === null) return;
+
+        try {
+            await api.post(`/fees/reconciliation/reconcile_erp_transaction/`, {
+                transaction_id: tx.id,
+                reconciliation_date: date
+            });
+            fetchEntries();
+            alert('Transaction reconciled successfully!');
+        } catch (err) {
+            alert('Failed to reconcile: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -139,6 +168,59 @@ function Reconciliation() {
                     <p className="text-[11px] text-gray-400">Supported columns: Date, Description, Amount, Reference</p>
                 </form>
             </div>
+
+            {/* ERP Transactions Section */}
+            {filter === 'pending' && erpTransactions.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden relative">
+                    <div className="bg-orange-50 px-6 py-4 border-b border-orange-100">
+                        <h3 className="text-sm font-black text-orange-800 uppercase tracking-widest flex items-center gap-2">
+                            <span>📋 ERP Transactions Pending Confirmation</span>
+                            <span className="bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full text-[10px]">{erpTransactions.length}</span>
+                        </h3>
+                        <p className="text-[11px] text-orange-600 mt-0.5 font-medium">These are online transactions recorded in ERP but not yet matched with bank entries.</p>
+                    </div>
+                    <table className="min-w-full divide-y divide-gray-100">
+                        <thead className="bg-gray-50">
+                            <tr className="text-left text-[11px] font-black text-gray-500 uppercase tracking-widest">
+                                <th className="px-6 py-4">Receipt # / Date</th>
+                                <th className="px-6 py-4">Student Name</th>
+                                <th className="px-6 py-4">Fee Head</th>
+                                <th className="px-6 py-4">Amount</th>
+                                <th className="px-6 py-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {erpTransactions.map((tx) => (
+                                <tr key={tx.id} className="hover:bg-orange-50/30 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-black text-gray-800">#{tx.receipt_no}</span>
+                                            <span className="text-[10px] text-gray-400 font-bold">{tx.payment_date}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <p className="text-sm font-bold text-gray-700">{tx.student_name}</p>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <p className="text-xs text-gray-500 font-medium">{tx.fee_head_name} (Inst {tx.installment_number})</p>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <p className="text-sm font-black text-gray-800">₹{tx.amount_paid}</p>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <button
+                                            onClick={() => handleReconcileERP(tx)}
+                                            className="bg-orange-100 text-orange-700 hover:bg-orange-200 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition shadow-sm"
+                                        >
+                                            Confirm Reco
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             {/* Entries Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative min-h-[400px]">

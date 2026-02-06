@@ -378,3 +378,44 @@ class BankReconciliationViewSet(viewsets.ModelViewSet):
         
         return Response({'message': 'Successfully unreconciled entry'})
 
+    @action(detail=False, methods=['get'])
+    def pending_erp_transactions(self, request):
+        """
+        Online transactions not linked to any bank matching
+        """
+        transactions = FeeTransaction.objects.filter(
+            receipt__payment_mode='ONLINE',
+            bank_matches__isnull=True
+        ).order_by('-payment_date')
+        
+        serializer = FeeTransactionSerializer(transactions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def reconcile_erp_transaction(self, request):
+        """
+        Manually reconcile an ERP transaction by creating a manual bank entry
+        """
+        transaction_id = request.data.get('transaction_id')
+        reconciliation_date = request.data.get('reconciliation_date')
+        
+        if not reconciliation_date:
+            reconciliation_date = datetime.now().date()
+        
+        try:
+            fee_tx = FeeTransaction.objects.get(id=transaction_id)
+        except FeeTransaction.DoesNotExist:
+            return Response({'error': 'Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+        # Create a manual BankStatementEntry for this transaction
+        BankStatementEntry.objects.create(
+            date=fee_tx.payment_date,
+            description=f"Manual reconciliation for {fee_tx.student.name} - Receipt {fee_tx.receipt.receipt_no if fee_tx.receipt else 'N/A'}",
+            amount=fee_tx.amount_paid,
+            is_reconciled=True,
+            reconciliation_date=reconciliation_date,
+            matched_transaction=fee_tx
+        )
+        
+        return Response({'message': 'ERP Transaction reconciled successfully'})
+

@@ -63,9 +63,12 @@ class StudentFeeSerializer(serializers.ModelSerializer):
 
 class FeeTransactionSerializer(serializers.ModelSerializer):
     fee_head_name = serializers.SerializerMethodField()
+    student_name = serializers.ReadOnlyField(source='student.name')
+    receipt_no = serializers.ReadOnlyField(source='receipt.receipt_no')
+
     class Meta:
         model = FeeTransaction
-        fields = ['id', 'student', 'fee_head', 'fee_head_name', 'receipt', 'amount_paid', 'installment_number', 'payment_date', 'remarks']
+        fields = ['id', 'student', 'student_name', 'fee_head', 'fee_head_name', 'receipt', 'receipt_no', 'amount_paid', 'installment_number', 'payment_date', 'remarks']
     
     def get_fee_head_name(self, obj):
         if obj.fee_head and obj.fee_head.is_transport_fee:
