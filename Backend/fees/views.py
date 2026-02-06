@@ -235,6 +235,14 @@ class BankReconciliationViewSet(viewsets.ModelViewSet):
     queryset = BankStatementEntry.objects.all().order_by('-date')
     serializer_class = BankStatementEntrySerializer
 
+    def get_queryset(self):
+        queryset = BankStatementEntry.objects.all().order_by('-date')
+        is_reconciled = self.request.query_params.get('is_reconciled')
+        if is_reconciled is not None:
+            is_reconciled = is_reconciled.lower() == 'true'
+            queryset = queryset.filter(is_reconciled=is_reconciled)
+        return queryset
+
     @action(detail=False, methods=['post'])
     def upload_statement(self, request):
         file_obj = request.FILES.get('file')
@@ -335,6 +343,8 @@ class BankReconciliationViewSet(viewsets.ModelViewSet):
         entry = self.get_object()
         transaction_id = request.data.get('transaction_id')
         
+        reconciliation_date = request.data.get('reconciliation_date')
+        
         if transaction_id:
             try:
                 fee_tx = FeeTransaction.objects.get(id=transaction_id)
@@ -343,6 +353,11 @@ class BankReconciliationViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
         
         entry.is_reconciled = True
+        if reconciliation_date:
+            entry.reconciliation_date = reconciliation_date
+        elif not entry.reconciliation_date:
+            entry.reconciliation_date = entry.date # Default to statement date if none provided
+            
         entry.save()
         match_msg = "linked to transaction" if transaction_id else "without linkage"
         return Response({'message': f'Manual reconciliation successful ({match_msg})'})

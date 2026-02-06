@@ -156,6 +156,7 @@ class BankStatementEntry(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     ref_number = models.CharField(max_length=100, blank=True, null=True)
     is_reconciled = models.BooleanField(default=False)
+    reconciliation_date = models.DateField(null=True, blank=True)
     matched_transaction = models.ForeignKey(FeeTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_matches')
     
     created_at = models.DateTimeField(auto_now_add=True)

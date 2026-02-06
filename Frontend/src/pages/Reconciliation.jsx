@@ -10,14 +10,20 @@ function Reconciliation() {
     const [error, setError] = useState(null);
     const [file, setFile] = useState(null);
 
-    useEffect(() => {
-        fetchEntries();
-    }, []);
+    const [filter, setFilter] = useState('pending'); // 'pending' | 'matched' | 'all'
 
-    const fetchEntries = async () => {
+    useEffect(() => {
+        fetchEntries(filter);
+    }, [filter]);
+
+    const fetchEntries = async (currentFilter = filter) => {
         setLoading(true);
         try {
-            const response = await api.get('/fees/reconciliation/');
+            let url = '/fees/reconciliation/';
+            if (currentFilter === 'pending') url += '?is_reconciled=false';
+            else if (currentFilter === 'matched') url += '?is_reconciled=true';
+
+            const response = await api.get(url);
             setEntries(response.data);
             setError(null);
         } catch (err) {
@@ -50,16 +56,17 @@ function Reconciliation() {
         }
     };
 
-    const handleAutoMatch = async () => {
-        setMatching(true);
+    const handleManualReconcile = async (entry) => {
+        const date = window.prompt('Enter reconciliation date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+        if (date === null) return; // Cancelled
+
         try {
-            const response = await api.post('/fees/reconciliation/auto_match/');
-            alert(response.data.message);
+            await api.post(`/fees/reconciliation/${entry.id}/reconcile_manual/`, {
+                reconciliation_date: date
+            });
             fetchEntries();
         } catch (err) {
-            alert('Auto-matching failed');
-        } finally {
-            setMatching(false);
+            alert('Failed to mark as reconciled: ' + (err.response?.data?.error || err.message));
         }
     };
 
@@ -71,8 +78,39 @@ function Reconciliation() {
                     <p className="text-gray-500 mt-1">Match bank statement credits with ERP transactions</p>
                 </div>
                 <div className="flex gap-3">
+                    <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100 mr-4">
+                        <button
+                            onClick={() => setFilter('pending')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${filter === 'pending' ? 'bg-black text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            Pending
+                        </button>
+                        <button
+                            onClick={() => setFilter('matched')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${filter === 'matched' ? 'bg-black text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            Matched
+                        </button>
+                        <button
+                            onClick={() => setFilter('all')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${filter === 'all' ? 'bg-black text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            All
+                        </button>
+                    </div>
                     <button
-                        onClick={handleAutoMatch}
+                        onClick={async () => {
+                            setMatching(true);
+                            try {
+                                const response = await api.post('/fees/reconciliation/auto_match/');
+                                alert(response.data.message);
+                                fetchEntries();
+                            } catch (err) {
+                                alert('Auto-matching failed');
+                            } finally {
+                                setMatching(false);
+                            }
+                        }}
                         disabled={matching || loading}
                         className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
@@ -109,8 +147,8 @@ function Reconciliation() {
                 <table className={`min-w-full divide-y divide-gray-100 ${loading ? 'opacity-20' : 'opacity-100'}`}>
                     <thead className="bg-gray-50">
                         <tr className="text-left text-[12px] font-black text-gray-600 uppercase tracking-widest">
-                            <th className="px-6 py-4">Status</th>
-                            <th className="px-6 py-4">Date</th>
+                            <th className="px-6 py-4">Status / Reco Date</th>
+                            <th className="px-6 py-4">Stmt Date</th>
                             <th className="px-6 py-4">Description</th>
                             <th className="px-6 py-4">Amount</th>
                             <th className="px-6 py-4">Matched ERP Transaction</th>
@@ -120,11 +158,16 @@ function Reconciliation() {
                         {entries.map((entry) => (
                             <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 py-4">
-                                    {entry.is_reconciled ? (
-                                        <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full uppercase">Matched</span>
-                                    ) : (
-                                        <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black rounded-full uppercase">Unmatched</span>
-                                    )}
+                                    <div className="flex flex-col gap-1">
+                                        {entry.is_reconciled ? (
+                                            <>
+                                                <span className="w-fit px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full uppercase">Matched</span>
+                                                <span className="text-[10px] text-gray-400 font-bold">{entry.reconciliation_date}</span>
+                                            </>
+                                        ) : (
+                                            <span className="w-fit px-3 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black rounded-full uppercase">Unmatched</span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-700 font-medium">{entry.date}</td>
                                 <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={entry.description}>
@@ -159,14 +202,7 @@ function Reconciliation() {
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="text-gray-300 italic text-xs">No match found</span>
                                             <button
-                                                onClick={async () => {
-                                                    // Manual Reconcile (Mark verified)
-                                                    if (!window.confirm('Mark this entry as reconciled manually?')) return;
-                                                    try {
-                                                        await api.post(`/fees/reconciliation/${entry.id}/reconcile_manual/`, {});
-                                                        fetchEntries();
-                                                    } catch (e) { alert('Failed to mark as reconciled'); }
-                                                }}
+                                                onClick={() => handleManualReconcile(entry)}
                                                 className="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide transition"
                                             >
                                                 Mark Reconciled
